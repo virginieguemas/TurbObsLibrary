@@ -4,6 +4,8 @@
 # Author : Virginie Guemas - 2020
 ###############################################################################
 import numpy as np
+import cdms2 as cdms
+import MV2 as MV
 
 rootpath='/home/guemas/Obs/'
 ###############################################################################
@@ -58,3 +60,38 @@ def shebatower(freq='Hourly'):
             table[ifld]={'values':values}
 
     return table
+################################################################################
+def shebapam(freq='1hour'):
+
+    lstpamtab=[]
+    vars2define = [True,True,True,True]
+    if freq == '1hour':
+      rootname=rootpath+'SHEBA/Mesonet_PAMIII/1hour/isff97'
+      for mon in range(10,12):
+        f=cdms.open(rootname+str(mon)+'.nc')
+        lstvars=f.listvariables()
+        lstvars.remove('base_time')
+        for station in range(4):
+          if vars2define[station]:
+            table={}
+            table['date']={'values':f['time'][:],'unit':f['time'].units,'name':'time'}
+            for var in lstvars:
+              if 'long_name' in f[var].listattributes():
+                table[var]={'values':f[var][:,station],'unit':f[var].units,'name':f[var].long_name}
+              else:
+                table[var]={'values':f[var][:,station],'unit':f[var].units}
+
+            lstpamtab.append(table)
+            vars2define[station] = False
+          else:   
+            for var in lstvars:
+              tmp=MV.concatenate((lstpamtab[station][var]['values'],f[var][:,station]))
+              tmp.id=lstpamtab[station][var]['values'].id
+              tmp.short_name=lstpamtab[station][var]['values'].short_name
+              lstpamtab[station][var]['values']=tmp
+
+            lstpamtab[station]['date']['values']=np.append(lstpamtab[station]['date']['values'],f['time'][:])
+
+        f.close()
+
+    return lstpamtab

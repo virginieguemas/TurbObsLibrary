@@ -6,6 +6,7 @@
 import numpy as np
 import cdms2 as cdms
 import MV2 as MV
+import os
 
 rootpath='/home/guemas/Obs/'
 ###############################################################################
@@ -63,41 +64,23 @@ def shebatower(freq='Hourly'):
 ################################################################################
 def shebapam(freq='1hour'):
 
-    lstpamtab=[]      # 4 output tables, 1 per PAM station
-    vars2define = [True,True,True,True]   # Tables to be defined at first file
-    if freq == '1hour':
-      lstdates=['97'+str(x) for x in range(10,13)]
-      lstdates.extend(['98'+"%02d" % x for x in range(1,11)]) 
-      rootname=rootpath+'SHEBA/Mesonet_PAMIII/1hour/isff' 
-      # To build file name : rootname + date from lstdates + nc
-      for date in lstdates:
-        f=cdms.open(rootname+date+'.nc')
-        lstvars=f.listvariables()
-        lstvars.remove('base_time')
-        # Which variables to include in each station table
-        for station in range(4):
-          if vars2define[station]:
-            table={}
-            table['date']={'values':f['time'][:],'unit':f['time'].units,'name':'time'}
-            for var in lstvars:
-              if 'long_name' in f[var].listattributes():
-                table[var]={'values':f[var][:,station],'unit':f[var].units,'name':f[var].long_name}
-              else:
-                table[var]={'values':f[var][:,station],'unit':f[var].units}
+    lstpamtab=[]      # 4 output dicts, 1 per PAM station
+    rootname=rootpath+'SHEBA/Mesonet_PAMIII/1hour/isff'
+    os.system('cdscan -x cdsample.xml '+rootname+'*.nc')
+    f=cdms.open('cdsample.xml')
+    lstvars=f.listvariables()
+    lstvars.remove('base_time')
+    # Which variables to include in each station table
+    for station in xrange(4): # 4 stations
+      table={}
+      for var in lstvars:
+        table[var]=f[var][:,station]
+        #f[var] is already a masked cdms variable
+        table[var].name=table[var].short_name
+      lstpamtab.append(table)
+    f.close()
+    os.remove('cdsample.xml')
 
-            lstpamtab.append(table)
-            # From first file, we need to define name, unit and include values
-            vars2define[station] = False
-          else:   
-            # Only concatenate values afterward
-            for var in lstvars:
-              tmp=MV.concatenate((lstpamtab[station][var]['values'],f[var][:,station]))
-              tmp.id=lstpamtab[station][var]['values'].id
-              tmp.short_name=lstpamtab[station][var]['values'].short_name
-              lstpamtab[station][var]['values']=tmp
+    return lstpamtab      
+################################################################################
 
-            lstpamtab[station]['date']['values']=np.append(lstpamtab[station]['date']['values'],f['time'][:])
-
-        f.close()
-
-    return lstpamtab

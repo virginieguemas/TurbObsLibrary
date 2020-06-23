@@ -63,14 +63,18 @@ def shebatower(freq='Hourly'):
 ################################################################################
 def shebapam(freq='1hour'):
 
-    lstpamtab=[]
-    vars2define = [True,True,True,True]
+    lstpamtab=[]      # 4 output tables, 1 per PAM station
+    vars2define = [True,True,True,True]   # Tables to be defined at first file
     if freq == '1hour':
-      rootname=rootpath+'SHEBA/Mesonet_PAMIII/1hour/isff97'
-      for mon in range(10,12):
-        f=cdms.open(rootname+str(mon)+'.nc')
+      lstdates=['97'+str(x) for x in range(10,13)]
+      lstdates.extend(['98'+"%02d" % x for x in range(1,11)]) 
+      rootname=rootpath+'SHEBA/Mesonet_PAMIII/1hour/isff' 
+      # To build file name : rootname + date from lstdates + nc
+      for date in lstdates:
+        f=cdms.open(rootname+date+'.nc')
         lstvars=f.listvariables()
         lstvars.remove('base_time')
+        # Which variables to include in each station table
         for station in range(4):
           if vars2define[station]:
             table={}
@@ -82,8 +86,10 @@ def shebapam(freq='1hour'):
                 table[var]={'values':f[var][:,station],'unit':f[var].units}
 
             lstpamtab.append(table)
+            # From first file, we need to define name, unit and include values
             vars2define[station] = False
           else:   
+            # Only concatenate values afterward
             for var in lstvars:
               tmp=MV.concatenate((lstpamtab[station][var]['values'],f[var][:,station]))
               tmp.id=lstpamtab[station][var]['values'].id

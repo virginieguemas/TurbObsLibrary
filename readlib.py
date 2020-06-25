@@ -45,18 +45,27 @@ def shebatower(freq='Hourly'):
     table={}
     startval={'Hourly':2,'Inthourly':1,'Intdaily':1,'Daily':0}
     for ifld in range(len(lines[0])):
+        var=lines[0][ifld]
         values=[]
         for iline in range(startval[freq],len(lines)):
-            values.append(float(lines[iline][ifld]))
-        values=np.array(values)
-        for fill in lstfill:
-            values=np.where(values==fill,np.nan,values)
-        if freq == 'Hourly': 
-            table[lines[0][ifld]]={'values':values,'unit':lines[1][ifld]}
-        elif freq == 'Intdaily' or freq == 'Inthourly': 
-            table[lines[0][ifld]]={'values':values}
-        elif freq == 'Daily':
-            table[ifld]={'values':values}
+          values.append(float(lines[iline][ifld]))
+        values=MV.array(values)
+        if var == 'JD' : 
+          values.unit='days since 1997-01-01 00:00:00'
+          time=cdms.createAxis(values)
+          time.id='time'
+        else :
+          for fill in lstfill:
+            values=MV.masked_where(values==fill, values)
+          if freq == 'Hourly': 
+            values.unit=lines[1][ifld]
+          values.setAxisList((time,))
+          if freq == 'Daily':
+            table[ifld]=values
+          else:
+            values.id=lines[0][ifld]
+            values.name=lines[0][ifld]
+            table[lines[0][ifld]]=values
 
     return table
 ################################################################################

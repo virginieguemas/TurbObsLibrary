@@ -32,19 +32,15 @@ def shebatower(freq='Hourly'):
     lstfill=(999.,9999.,99999.)
 
     filename={'Hourly':'prof_file_all6_ed_hd.txt','Inthourly':'main_file6_hd.txt','Daily':'prof_file_davg_all6_ed.txt','Intdaily':'main_file_davg6_n4_hd.txt'}
-    f=open(rootpath+'SHEBA/Tower/'+freq+'/'+filename[freq],'r')
+    splitarg={'Hourly':'\t','Inthourly':'\t','Daily':None,'Intdaily':'\t'}
+
+    f=open(rootpath+'SHEBA/Tower/'+freq+'/'+filename[freq],'rU')
     lines=f.readlines()
     f.close()
     
-    if freq=='Daily':
-        lines=lines[0].split('\r')
-        lines.remove('')
-        for iline in range(len(lines)):
-            lines[iline]=lines[iline].split()
-    else :
-        for iline in range(len(lines)):
-            lines[iline]=lines[iline].strip('\n') 
-            lines[iline]=lines[iline].split('\t')
+    for iline in range(len(lines)):
+      lines[iline]=lines[iline].strip('\n') 
+      lines[iline]=lines[iline].split(splitarg[freq])
     
     table={}
     startval={'Hourly':2,'Inthourly':1,'Intdaily':1,'Daily':0}

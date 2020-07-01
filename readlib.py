@@ -24,6 +24,7 @@ def shebatower(freq='Hourly'):
 
     Author : virginie.Guemas@meteo.fr - 2020
     """
+
     lstfreq=('Hourly','Inthourly','Daily','Intdaily')
     if freq not in lstfreq: 
       print('Argument freq should be in',lstfreq)
@@ -33,39 +34,45 @@ def shebatower(freq='Hourly'):
 
     filename={'Hourly':'prof_file_all6_ed_hd.txt','Inthourly':'main_file6_hd.txt','Daily':'prof_file_davg_all6_ed.txt','Intdaily':'main_file_davg6_n4_hd.txt'}
     splitarg={'Hourly':'\t','Inthourly':'\t','Daily':None,'Intdaily':'\t'}
+    # Character between the columns of the ASCII file
 
     f=open(rootpath+'SHEBA/Tower/'+freq+'/'+filename[freq],'rU')
     lines=f.readlines()
     f.close()
     
-    for iline in range(len(lines)):
+    for iline in range(len(lines)): 
+    # Toward a list of lines which are lists of column values
       lines[iline]=lines[iline].strip('\n') 
       lines[iline]=lines[iline].split(splitarg[freq])
     
-    table={}
+    table={} # 1 dict containing all cdms variables referenced through their file ids
     startval={'Hourly':2,'Inthourly':1,'Intdaily':1,'Daily':0}
+    # Some files do not have the units and one not even the variable names 
     for ifld in range(len(lines[0])):
-        var=lines[0][ifld]
-        values=[]
-        for iline in range(startval[freq],len(lines)):
-          values.append(float(lines[iline][ifld]))
-        values=MV.array(values)
-        if var == 'JD' : 
-          values.unit='days since 1997-01-01 00:00:00'
-          time=cdms.createAxis(values)
-          time.id='time'
-        else :
-          for fill in lstfill:
-            values=MV.masked_where(values==fill, values)
-          if freq == 'Hourly': 
-            values.unit=lines[1][ifld]
-          values.setAxisList((time,))
-          if freq == 'Daily':
-            table[ifld]=values
-          else:
-            values.id=lines[0][ifld]
-            values.name=lines[0][ifld]
-            table[lines[0][ifld]]=values
+      var=lines[0][ifld] # This will be the variable name if existing in the file
+      values=[]
+      for iline in range(startval[freq],len(lines)):
+        values.append(float(lines[iline][ifld]))
+      values=MV.array(values)
+      # values along a column organised into an array
+      if var == 'JD' : 
+        values.unit='days since 1997-01-01 00:00:00'
+        time=cdms.createAxis(values)
+        time.id='time'
+      # JD is the time axis to be provided to all other cdms variables
+      else :
+        for fill in lstfill:
+          values=MV.masked_where(values==fill, values)
+        # the array becomes a cdms masked variable 
+        if freq == 'Hourly': 
+          values.unit=lines[1][ifld] # Units only available in the Hourly file
+        values.setAxisList((time,)) # Set the time axis
+        if freq == 'Daily':
+          table[ifld]=values # No even variable name in the Daily file
+        else:
+          values.id=lines[0][ifld]
+          values.name=lines[0][ifld]
+          table[lines[0][ifld]]=values
 
     return table
 ################################################################################
@@ -83,6 +90,11 @@ def shebapam(freq='1hour'):
 
     Author : virginie.Guemas@meteo.fr - 2020  
     """
+
+    lstfreq=('1hour','5min')
+    if freq not in lstfreq: 
+      print('Argument freq should be in',lstfreq)
+      return
 
     lstpamtab=[]      # 4 output dicts, 1 per PAM station
     filebase={'1hour':'isff','5min':'sheba'}

@@ -43,9 +43,9 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly') :
             tmp.insert(index,shebatower(freq))
             lstfiles.extend(tmp)
           else:
-            lstfiles.append(shebatower(freq))
+            lstfiles.extend(shebatower(freq))
         else:
-          lstfiles.append(shebapam(freqpam,sites))
+          lstfiles.extend(shebapam(freqpam,sites))
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 

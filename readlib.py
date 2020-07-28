@@ -56,7 +56,7 @@ def shebatower(freq='Hourly'):
     This function loads the SHEBA tower data. It takes one argument :
     - freq = 'Daily' / 'Hourly' / 'Inthourly' / 'Intdaily'. Default : 'Hourly' 
 
-    Author : virginie.Guemas@meteo.fr - 2020
+    Author : virginie.Guemas@meteo.fr - June 2020
     """
 
     lstfreq=('Hourly','Inthourly','Daily','Intdaily')
@@ -123,7 +123,7 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
     file. This existence of this file is tested to know whether the renaming has
     to be done or not.
 
-    Author : virginie.guemas@meteo.fr - 2020  
+    Author : virginie.guemas@meteo.fr - June 2020  
     """
 
     lstfreq=('1hour','5min')
@@ -169,4 +169,46 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
 
     return lstpamtab      
 ################################################################################
+def accacia(flights=['FAAM','MASIN']):
+    """
+    This function loads the ACCACIA flights data. It takes one argument :
+    - flights = a list of flights amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
 
+    Author : virginie.Guemas@meteo.fr - July 2020
+    """
+
+    if not isinstance(flights,list):
+      sys.exit('Argument flights should be a list')
+
+    flightnames=('FAAM','MASIN')
+    lstacctab=[]  # 1 output dict per flight listed in flights
+    for flight in flights:
+      if flight not in flightnames:
+        sys.exit('Argument flights should be a list of flights from',flightnames)
+      f=open(rootpath+'ACCACIA/ACCACIA_'+flight+'_flights_database_obs_lr_Virginie.txt','rU')
+      lines=f.readlines()
+      f.close()
+      for iline in range(len(lines)): 
+      # Toward a list of lines which are lists of column values
+        lines[iline]=lines[iline].strip('\n') 
+        lines[iline]=lines[iline].split()
+    
+      table={} # 1 dict containing all cdms variables referenced through their file ids
+      for ifld in range(len(lines[0])):
+        values=[]
+        for iline in range(1,len(lines)):
+          values.append(float(lines[iline][ifld]))
+        #if lines[0][ifld] == 'icefractionalb2':
+        #  return values
+          # values along a column organised into an array
+        values=MV.array(values) 
+        values=MV.masked_where(np.isnan(values), values)
+        values=MV.masked_where(values==float('Inf'), values)
+        # the array becomes a cdms masked variable 
+        values.id=lines[0][ifld]
+        values.name=lines[0][ifld]
+        table[lines[0][ifld]]=values
+      lstacctab.append(table)
+
+    return lstacctab
+###############################################################################

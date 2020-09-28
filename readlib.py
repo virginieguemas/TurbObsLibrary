@@ -4,10 +4,13 @@
 # Author : Virginie Guemas - 2020
 ###############################################################################
 import numpy as np
-import cdms2 as cdms
-import MV2 as MV
+#mport cdms2 as cdms
+#import MV2 as MV
+import xarray as xr
+import datetime
 import os
 import sys
+from glob import glob
 
 rootpath='/home/guemas/Obs/'
 ###############################################################################
@@ -115,15 +118,10 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
     This function loads the SHEBA PAM station data. It takes two arguments :
     - freq = '1hour' / '5min'. Default : '1hour'
     - sites = a list of sites amongst ['Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']
-
-    Warning : The 5min files contain a character string 'station' that cdms can
-    not read through cdscan but the station dimension still needs to be read
-    even thought the station variable can not. The workaround changes the station
-    variable name to stationame at first reading and create an empty STATIONRENAMED
-    file. This existence of this file is tested to know whether the renaming has
-    to be done or not.
+    This function outputs a list of Xarray Datasets, one Dataset per site.
 
     Author : virginie.guemas@meteo.fr - June 2020  
+    Modified : Switch from cdms to xarray - Virginie Guemas - September 2020
     """
 
     lstfreq=('1hour','5min')
@@ -133,55 +131,67 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
     if not isinstance(sites,list):
       sys.exit('Argument sites should be a list')
 
-    lstpamtab=[]      # 1 output dict per PAM station listed in sites
     stationames=('Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida')
-    columns=[]
     for site in sites:
       if site not in stationames:
         sys.exit('Argument sites should be a list of stations from',stationames)
-      columns.append(stationames.index(site)) # Which columns to read
 
     filebase={'1hour':'isff','5min':'sheba'}
     dirname=rootpath+'SHEBA/Mesonet_PAMIII/'+freq+'/'
     rootname=dirname+filebase[freq]
 
-    # Work around to skip the reading of the station variable which can not be read by cdscan because it is a character string whereas cdscan needs to read the station dimension.
-    if freq=='5min':
-      os.system('if [ ! -e '+dirname+'STATIONRENAMED ] ; then for file in `ls '+dirname+'*nc` ; do ncrename -v station,stationname $file ; done ; fi')
-      os.system('touch '+dirname+'STATIONRENAMED')
-
     # Reading of all netcdf files at once
-    os.system('cdscan --exclude var,stationname -x cdsample.xml '+rootname+'*.nc')
-    f=cdms.open('cdsample.xml')
-    lstvars=f.listvariables()
-    lstvars.remove('base_time')
-    # Which variables to include in each station table
-    for station in columns: # 4 stations
-      table={}
-      for var in lstvars:
-        table[var]=f[var][:,station]
-        #f[var] is already a masked cdms variable
-        if 'short_name' in table[var].attributes : 
-          table[var].name=table[var].short_name
-      lstpamtab.append(table)
-    f.close()
-    os.remove('cdsample.xml')
+    #f=xr.open_mfdataset(rootname+'*.nc',combine='by_coords',data_vars='minimal',coords='minimal',compat='override')
+    # The line above does not work properly for freq = 1hour because the Rlwdiff_in_ARM and Rlwdiff_out_ARM are present in all netcdfs but the last. The last netcdf is therefore not properly read and only nans appear. The same issue appears for freq='5min' with a few variables absent in several files. The next few lines serve as a workaround.
 
-    return lstpamtab      
+    paths=sorted(glob(rootname+'*.nc'))
+    # list of paths of files to be loaded
+    datasets = [xr.open_dataset(p) for p in paths]
+    # 1 dataset per file to be all concatenated together
+    if freq == '1hour':
+      datasets[12]['Rlwdiff_in_ARM']=xr.DataArray(np.empty((114,4))*np.nan,dims=('time','station'))
+      datasets[12]['Rlwdiff_out_ARM']=xr.DataArray(np.empty((114,4))*np.nan,dims=('time','station'))
+      # Rlwdiff_in_ARM & Rlwdiff_out_ARM need to be included in all files for the concatenation to work properly. Inclusion with nan only in the files where they are missing.
+    elif freq == '5min':
+      for ii in range(len(datasets)) :
+        if ii == paths.index(rootname+'.980207.nc'):
+          lentime=287
+        elif ii == paths.index(rootname+'.981005.nc'):
+          lentime=209
+        else:
+          lentime=288
+        for var in ('vdcmax_batt','vdcmin_batt','lat_sec','rainr_eti','raina_eti','ulev','vlev','Rlw_in','Rlw_out','lag_sec'):
+          if var not in datasets[ii].keys():
+            datasets[ii][var]=xr.DataArray(np.empty((lentime,4))*np.nan,dims=('time','station'))
+        # Same for this list of variables
+
+    f=xr.concat(datasets, dim='time')
+    
+    f.attrs={} # Remove the history which otherwise would be copied to each dataset and does not make sense.
+    lstpamdat=[]      # 1 output dataset per PAM station listed in sites
+    # Split the f dataset into one per PAM station
+    for site in sites: # 4 stations 
+      lstpamdat.append(f.isel(station=stationames.index(site)))
+
+    return lstpamdat      
 ################################################################################
 def accacia(flights=['FAAM','MASIN']):
     """
     This function loads the ACCACIA flights data. It takes one argument :
     - flights = a list of flights amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
+    This function outputs a list of Xarray Datasets, one Dataset per flight.
 
-    Author : virginie.Guemas@meteo.fr - July 2020
+    Author : virginie.guemas@meteo.fr - July 2020
+    Modified : Switch from cdms to xarray - Virginie Guemas - September 2020
     """
+    sys.path.append(rootpath+'ACCACIA/')
+    import accacia_info
 
     if not isinstance(flights,list):
       sys.exit('Argument flights should be a list')
 
     flightnames=('FAAM','MASIN')
-    lstacctab=[]  # 1 output dict per flight listed in flights
+    lstaccdat=[]  # 1 output dataset per flight listed in flights
     for flight in flights:
       if flight not in flightnames:
         sys.exit('Argument flights should be a list of flights from',flightnames)
@@ -193,22 +203,32 @@ def accacia(flights=['FAAM','MASIN']):
         lines[iline]=lines[iline].strip('\n') 
         lines[iline]=lines[iline].split()
     
-      table={} # 1 dict containing all cdms variables referenced through their file ids
+      ds=xr.Dataset() 
+      # 1 Dataset containing all DataArrays available for each flight
       for ifld in range(len(lines[0])):
         values=[]
         for iline in range(1,len(lines)):
           values.append(float(lines[iline][ifld]))
-        #if lines[0][ifld] == 'icefractionalb2':
-        #  return values
           # values along a column organised into an array
-        values=MV.array(values) 
-        values=MV.masked_where(np.isnan(values), values)
-        values=MV.masked_where(values==float('Inf'), values)
-        # the array becomes a cdms masked variable 
-        values.id=lines[0][ifld]
-        values.name=lines[0][ifld]
-        table[lines[0][ifld]]=values
-      lstacctab.append(table)
+        array=xr.DataArray(values,dims=('time'),attrs={'long_name':accacia_info.accacia_names(lines[0][ifld]),'units':accacia_info.accacia_units(lines[0][ifld])})
+        # the list of values becomes an Xarray DataArray
+        ds[lines[0][ifld]]=array
+        # the Xarray DataArray is included into the flight Dataset
+        
+      timecoord=[]
+      if flight == 'FAAM': 
+        for ii in range(len(values)):
+          timecoord.append(datetime.datetime(2013,3,ds.calday[ii])+datetime.timedelta(seconds=ds.meantime.values[ii]))
+      elif flight == 'MASIN':
+        time_bnds=[]
+        for ii in range(len(values)):
+          timecoord.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.meantime.values[ii]))
+          time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.starttime.values[ii]))
+          time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.endtime.values[ii]))
+        ds['time_bnds']=xr.DataArray(np.reshape(time_bnds,(int(len(time_bnds)/2),2)),dims=('time','bnds'))
+      ds=ds.assign_coords(time=timecoord)
 
-    return lstacctab
-###############################################################################
+      lstaccdat.append(ds)
+
+    return lstaccdat
+################################################################################

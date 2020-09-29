@@ -59,18 +59,27 @@ def shebatower(freq='Hourly'):
     This function loads the SHEBA tower data. It takes one argument :
     - freq = 'Daily' / 'Hourly' / 'Inthourly' / 'Intdaily'. Default : 'Hourly' 
 
-    Author : virginie.Guemas@meteo.fr - June 2020
+    This function outputs an Xarray Dataset.
+
+    Author : virginie.guemas@meteo.fr - June 2020
+    Modified : Switch from cdms to xarray - Virginie Guemas - September 2020
     """
+
+    sys.path.append(rootpath+'SHEBA/Tower/')
+    import sheba_info
+    # Where to find a subsidiary file where I stored the information I found on the variables
 
     lstfreq=('Hourly','Inthourly','Daily','Intdaily')
     if freq not in lstfreq: 
       sys.exit(('Argument freq should be in ',lstfreq))
 
-    lstfill=(999.,9999.,99999.)
+    lstfill=(9.99,999.,9999.,99999.) # Missing values
 
     filename={'Hourly':'prof_file_all6_ed_hd.txt','Inthourly':'main_file6_hd.txt','Daily':'prof_file_davg_all6_ed.txt','Intdaily':'main_file_davg6_n4_hd.txt'}
     splitarg={'Hourly':'\t','Inthourly':'\t','Daily':None,'Intdaily':'\t'}
     # Character between the columns of the ASCII file
+    interp={'Hourly':0,'Inthourly':1,'Daily':0,'Intdaily':1}
+    # Flag because different variables are stored in 'hl' in interpolated files or not
 
     f=open(rootpath+'SHEBA/Tower/'+freq+'/'+filename[freq],'rU')
     lines=f.readlines()
@@ -81,37 +90,35 @@ def shebatower(freq='Hourly'):
       lines[iline]=lines[iline].strip('\n') 
       lines[iline]=lines[iline].split(splitarg[freq])
     
-    table={} # 1 dict containing all cdms variables referenced through their file ids
-    startval={'Hourly':2,'Inthourly':1,'Intdaily':1,'Daily':0}
-    # Some files do not have the units and one not even the variable names 
-    for ifld in range(len(lines[0])):
-      var=lines[0][ifld] # This will be the variable name if existing in the file
+    ds=xr.Dataset() 
+    # One dataset containing all DataArrays variables available 
+    for ifld in range(len(lines[2])): 
+    # First and second lines might have additional variables for which there are no values
       values=[]
-      for iline in range(startval[freq],len(lines)):
+      for iline in range(2,len(lines)): # First line is the variable name, second the unit
         values.append(float(lines[iline][ifld]))
-      values=MV.array(values)
-      # values along a column organised into an array
-      if ifld == 0 : 
-        values.units='days since 1997-01-01 00:00:00'
-        values.id='time'
-        time=cdms.createAxis(values)
-        time.id='time'
-      # JD is the time axis to be provided to all other cdms variables
-      else :
-        for fill in lstfill:
-          values=MV.masked_where(values==fill, values)
-        # the array becomes a cdms masked variable 
-        if freq == 'Hourly': 
-          values.units=lines[1][ifld] # Units only available in the Hourly file
-        values.setAxisList((time,)) # Set the time axis
-        if freq == 'Daily':
-          table[ifld]=values # Not even variable name in the Daily file
-        else:
-          values.id=lines[0][ifld]
-          values.name=lines[0][ifld]
-          table[lines[0][ifld]]=values
+        # values along a column organised into an array
 
-    return table
+      for fill in lstfill:
+        values=np.where(np.array(values)==fill, np.nan, np.array(values))
+        # mask values in lstfill  
+
+      array=xr.DataArray(values,dims=('time'),attrs={'long_name':sheba_info.shebatower_names(lines[0][ifld],interp[freq]),'units':lines[1][ifld]})
+      # the list of values becomes an Xarray DataArray
+      name=lines[0][ifld]
+      name=name.replace('*','star') 
+      # '*' in the variable name is not an accepted charater to call it back
+      ds[name]=array
+      # the Xarray DataArray is included into the sheba tower dataset
+
+      if ifld == 0 :
+        timecoord=[]
+        for ii in range(len(values)):
+          timecoord.append(datetime.datetime(1996,12,31,0,0)+datetime.timedelta(seconds=values[ii]*86400.))
+        ds['time']=timecoord
+        # JD (first column) is the time axis to be provided to the whole dataset
+
+    return ds
 ################################################################################
 def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']):
     """
@@ -166,6 +173,7 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
         # Same for this list of variables
 
     f=xr.concat(datasets, dim='time')
+    # Concatenation
     
     f.attrs={} # Remove the history which otherwise would be copied to each dataset and does not make sense.
     lstpamdat=[]      # 1 output dataset per PAM station listed in sites
@@ -186,6 +194,7 @@ def accacia(flights=['FAAM','MASIN']):
     """
     sys.path.append(rootpath+'ACCACIA/')
     import accacia_info
+    # Where to find a subsidiary file where I stored the information I was provided on the variables
 
     if not isinstance(flights,list):
       sys.exit('Argument flights should be a list')
@@ -195,19 +204,21 @@ def accacia(flights=['FAAM','MASIN']):
     for flight in flights:
       if flight not in flightnames:
         sys.exit('Argument flights should be a list of flights from',flightnames)
+
       f=open(rootpath+'ACCACIA/ACCACIA_'+flight+'_flights_database_obs_lr_Virginie.txt','rU')
       lines=f.readlines()
       f.close()
+
       for iline in range(len(lines)): 
       # Toward a list of lines which are lists of column values
         lines[iline]=lines[iline].strip('\n') 
         lines[iline]=lines[iline].split()
     
       ds=xr.Dataset() 
-      # 1 Dataset containing all DataArrays available for each flight
+      # One dataset containing all variables available for each flight
       for ifld in range(len(lines[0])):
         values=[]
-        for iline in range(1,len(lines)):
+        for iline in range(1,len(lines)): # First line is variable name
           values.append(float(lines[iline][ifld]))
           # values along a column organised into an array
         array=xr.DataArray(values,dims=('time'),attrs={'long_name':accacia_info.accacia_names(lines[0][ifld]),'units':accacia_info.accacia_units(lines[0][ifld])})
@@ -219,14 +230,18 @@ def accacia(flights=['FAAM','MASIN']):
       if flight == 'FAAM': 
         for ii in range(len(values)):
           timecoord.append(datetime.datetime(2013,3,ds.calday[ii])+datetime.timedelta(seconds=ds.meantime.values[ii]))
+          # Creation of time axis from the calday and meantime variables
       elif flight == 'MASIN':
         time_bnds=[]
         for ii in range(len(values)):
           timecoord.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.meantime.values[ii]))
+          # Creation of time axis from the dayofyear and meantime variables
           time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.starttime.values[ii]))
           time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.endtime.values[ii]))
+          # Creation of time bounds
         ds['time_bnds']=xr.DataArray(np.reshape(time_bnds,(int(len(time_bnds)/2),2)),dims=('time','bnds'))
       ds=ds.assign_coords(time=timecoord)
+      # Inclusion of time axis in the flight dataset
 
       lstaccdat.append(ds)
 

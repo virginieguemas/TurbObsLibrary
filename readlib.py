@@ -14,13 +14,16 @@ from glob import glob
 
 rootpath='/home/guemas/Obs/'
 ###############################################################################
-def main(campaigns=['sheba'],sites=['tower'],freq='Hourly') : 
+def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
     This function loads any observational data from this database.
     It takes three arguments :
-    - campaigns = a list of campaign names. Default : ['sheba']
+    - campaigns = a list of campaign names amongst ['sheba','accacia']. Default : ['sheba']
     - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['tower']   
-    - freq = '5min' / 'Hourly' / 'Inthourly' / 'Daily' / 'Intdaily'. Default : 'Hourly'. Only 'Hourly' is available for all sites.
+    - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Inthourly' / 'Daily' / 'Intdaily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly', 'Inthourly', 'Daily' and 'Intdaily' are available for the tower. 
+    - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
+    
+    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
@@ -30,12 +33,15 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly') :
     if not isinstance(sites,list):
       sys.exit('Argument sites should be a list')
 
+    if not isinstance(flights,list):
+      sys.exit('Argument flights should be a list')
+
     if freq == 'Hourly' :
       freqpam = '1hour'
     else:
       freqpam = freq
 
-    lstfiles=[]
+    lstds=[]
     for campaign in campaigns:
       if campaign =='sheba':
         if 'tower' in sites:
@@ -44,15 +50,18 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly') :
             sites.remove('tower')
             tmp = shebapam(freqpam,sites)
             tmp.insert(index,shebatower(freq))
-            lstfiles.extend(tmp)
+            lstds.extend(tmp)
           else:
-            lstfiles.extend(shebatower(freq))
+            tmp=shebatower(freq)
+            lstds.append(shebatower(freq))
         else:
-          lstfiles.extend(shebapam(freqpam,sites))
+          lstds.extend(shebapam(freqpam,sites))
+      elif campaign == 'accacia':
+        lstds.extend(accacia(flights))  
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 
-    return lstfiles 
+    return lstds 
 ###############################################################################
 def shebatower(freq='Hourly'):
     """
@@ -117,7 +126,7 @@ def shebatower(freq='Hourly'):
           timecoord.append(datetime.datetime(1996,12,31,0,0)+datetime.timedelta(seconds=values[ii]*86400.))
         ds['time']=timecoord
         # JD (first column) is the time axis to be provided to the whole dataset
-
+  
     return ds
 ################################################################################
 def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']):

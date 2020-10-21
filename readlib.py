@@ -273,3 +273,78 @@ def acse():
         ds[var].attrs = {'long_name':acse_info.acse_names(var),'units':ds[var].units}
 
     return ds
+################################################################################
+def ascos():
+    """
+    This function reads the ASCOS campaign data and outputs an Xarray dataset. 
+
+    Author : virginie.guemas@meteo.fr - October 2020
+    """
+    
+    ds=xr.open_dataset(rootpath+'/ASCOS/Metalley/ascos_Metalley.nc',decode_times=False)
+
+    timecoord=[]
+    # Define the time axis from year, month, day, hour, minute, second
+    months=np.where(ds.day<10,9,8)
+    for ii in range(len(ds['time'])):
+      timecoord.append(datetime.datetime(year=2008,month=months[ii],day=ds.day[ii],hour=ds.hour[ii],minute=ds.minute[ii],second=ds.second[ii]))
+    ds=ds.assign_coords(time=timecoord)
+
+    # Define height level coordinates to define variables depending on (time, height) instead of var_height1, var_height2 ...
+    height_axis1=[0.94, 4.04, 5.21, 8.19, 15.4, 30.6]
+    ds=ds.assign_coords(height_axis1=height_axis1)
+    height_axis2=[0.2,1.02,1.79,5.32,8.36]    
+    ds=ds.assign_coords(height_axis2=height_axis2)
+    height_axis3=[3.19,14.92]
+    ds=ds.assign_coords(height_axis3=height_axis3)
+    height_axis4=[0.05,0.15,0.4,1.]
+    ds=ds.assign_coords(height_axis4=height_axis4)
+    height_axis5=np.arange(11)+1
+    ds=ds.assign_coords(height_axis5=height_axis5)
+
+    # Reorganize var_height1, var_height2 ... in var
+    lstvars1 = ('wspd','ts','g','ugeo','vgeo','wdirgeo','u','v','wdir','w','tke','tsts','uu','vv','ww','wts','uv','uw','vw','flag_csat','flag_grill','flag_gill','flag_licor','tc','q','tctc','wtc','wCO2','wq')
+    lstvars2 = ('TC_Air',)
+    lstvars3 = ('RH_Air','T_Air')
+    lstvars4 = ('TC_Ice',)
+    lstvars5 = ('TC_Surf',)
+    for var in lstvars1+lstvars2+lstvars3+lstvars4+lstvars5:
+      if var in lstvars1:
+        height = height_axis1
+        nameh = 'height_axis1'
+      elif var in lstvars2:
+        height = height_axis2
+        nameh = 'height_axis2'
+      elif var in lstvars3:
+        height = height_axis3
+        nameh = 'height_axis3'
+      elif var in lstvars4:
+        height = height_axis4
+        nameh = 'height_axis4'
+      elif var in lstvars5:
+        height = height_axis5
+        nameh = 'height_axis5'
+      var0 = np.empty((len(ds['time']),len(height)))*np.nan
+      for hh in range(len(height)):
+        if var in lstvars5:
+          suffix = str(int(height[hh]))
+        else:
+          suffix = str(int(height[hh]*100))+'_cm'
+        name = var+'_'+suffix
+        if name in ds.keys(): # Some levels missing for some variables
+          var0[:,hh] = ds[name].values
+          attrs = ds[name].attrs
+      xr_var = xr.DataArray(var0, dims=['time',nameh], attrs=attrs)
+      ds[var] = xr_var
+    # Removing var_height1, var_height2 ...
+      for hh in range(len(height)):
+        if var in lstvars5:
+          suffix = str(int(height[hh]))
+        else:
+          suffix = str(int(height[hh]*100))+'_cm'
+        name = var+'_'+suffix
+        if name in ds.keys():
+          ds=ds.drop(name)
+
+    return ds
+################################################################################

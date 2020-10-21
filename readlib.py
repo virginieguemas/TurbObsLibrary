@@ -4,8 +4,6 @@
 # Author : Virginie Guemas - 2020
 ###############################################################################
 import numpy as np
-#mport cdms2 as cdms
-#import MV2 as MV
 import xarray as xr
 import datetime
 import os
@@ -18,12 +16,12 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
     """
     This function loads any observational data from this database.
     It takes three arguments :
-    - campaigns = a list of campaign names amongst ['sheba','accacia']. Default : ['sheba']
+    - campaigns = a list of campaign names amongst ['sheba','accacia','acse']. Default : ['sheba']
     - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['tower']   
     - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Inthourly' / 'Daily' / 'Intdaily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly', 'Inthourly', 'Daily' and 'Intdaily' are available for the tower. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
     
-    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight.
+    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight or for the ACSE campaign.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
@@ -58,6 +56,8 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
           lstds.extend(shebapam(freqpam,sites))
       elif campaign == 'accacia':
         lstds.extend(accacia(flights))  
+      elif campaign == 'acse':
+        lstds.append(acse())
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 
@@ -256,3 +256,20 @@ def accacia(flights=['FAAM','MASIN']):
 
     return lstaccdat
 ################################################################################
+def acse():
+    """
+    This function reads the ACSE campaign data and outputs an Xarray dataset. 
+
+    Author : virginie.guemas@meteo.fr - October 2020
+    """
+    sys.path.append(rootpath+'ACSE/Version2/')
+    import acse_info
+
+    ds=xr.open_dataset(rootpath+'/ACSE/Version2/ACSE_CANDIFLOS_fluxes_Oden_20140710_v5.0.nc',drop_variables='doy')
+    # I drop doy because there is a bug in its conversion to a time series and we do not need it because we have a correct time index.
+
+    for var in ds.keys():
+      if acse_info.acse_names(var) != '':
+        ds[var].attrs = {'long_name':acse_info.acse_names(var),'units':ds[var].units}
+
+    return ds

@@ -18,10 +18,10 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
     It takes three arguments :
     - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos']. Default : ['sheba']
     - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['tower']   
-    - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Inthourly' / 'Daily' / 'Intdaily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly', 'Inthourly', 'Daily' and 'Intdaily' are available for the tower. 
+    - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Daily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly' and 'Daily' are available for the tower. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
     
-    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight or for the ACSE campaign.
+    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight or for the ACSE campaign or for the ASCOS campaign.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
@@ -47,11 +47,10 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
             index = sites.index('tower')
             sites.remove('tower')
             tmp = shebapam(freqpam,sites)
-            tmp.insert(index,shebatower(freq))
+            tmp.insert(index,shebatowergather(freq))
             lstds.extend(tmp)
           else:
-            tmp=shebatower(freq)
-            lstds.append(shebatower(freq))
+            lstds.append(shebatowergather(freq))
         else:
           lstds.extend(shebapam(freqpam,sites))
       elif campaign == 'accacia':
@@ -74,6 +73,8 @@ def shebatower(freq='Hourly'):
 
     Author : virginie.guemas@meteo.fr - June 2020
     Modified : Switch from cdms to xarray - Virginie Guemas - September 2020
+               Gather all levels from each variable by defining level axis - 
+                                            Virginie Guemas - October 2020
     """
 
     sys.path.append(rootpath+'SHEBA/Tower/')
@@ -128,8 +129,76 @@ def shebatower(freq='Hourly'):
           timecoord.append(datetime.datetime(1996,12,31,0,0)+datetime.timedelta(seconds=values[ii]*86400.))
         ds['time']=timecoord
         # JD (first column) is the time axis to be provided to the whole dataset
-  
+ 
+    # Define height level coordinates to define variables depending on (time, height) instead of var1, var2 ...
+    if freq == 'Hourly':
+      lstvars = ('z','ws','wd','T','q','rh','rhi','ustar','hs','ww','sgu','sgv','sgw','sgT','cT2','cu2','cv2','cw2','No','fl')
+      height = np.arange(5)+1
+      nameh = 'level'
+      ds = ds.assign_coords(level=height)
+    elif freq == 'Daily':
+      lstvars = ('z','ws','wd','T','q','rh','rhi','ustar','hs','ww')
+      height = np.arange(5)+1
+      nameh = 'level'
+      ds=ds.assign_coords(level=height)
+    elif freq == 'Inthourly' or freq == 'Intdaily':
+      lstvars = ('ws','wd','T','q','rhi','usb','hsb','hlb','zob','zotb','zoqb','zogb')
+      height = [2.5, 10]
+      nameh ='height'
+      ds=ds.assign_coords(height=height)
+
+    # Reorganize var1, var2 ... in var
+    for var in lstvars:
+      var0 = np.empty((len(ds['time']),len(height)))*np.nan
+      for hh in range(len(height)):
+        if var == 'usb' or var == 'hsb' or var == 'hlb'  :
+          name = var + '_' + str(height[hh])
+        else :
+          name = var+str(height[hh])
+        if name in ds.keys(): # Some missing levels
+          var0[:,hh] = ds[name].values
+          longname = ds[name].long_name.replace(' of fifth level','').replace(' at fifth level','').replace(' at level 5','').replace(' at 10m','')
+          units = ds[name].units
+          ds=ds.drop(name)
+      xr_var = xr.DataArray(var0, dims=['time',nameh], attrs={'long_name':longname,'units':units})
+      ds[var] = xr_var
+
+    if freq == 'Inthourly' or freq == 'Intdaily' :
+      ds['height'].attrs={'units':'m'}
+
     return ds
+################################################################################
+def shebatowergather(freq='Hourly'):
+    """
+    This function gathers in the same Xarray Dataset the SHEBA tower data from 
+    the 'Hourly' and 'Inthourly' files on one side or from the 'Daily' and 
+    'Intdaily' files on the other side.
+    - freq = 'Daily' / 'Hourly'. Default : 'Hourly' 
+
+    This function outputs an Xarray Dataset.
+
+    Author : virginie.guemas@meteo.fr - October 2020
+    """
+    
+    lstfreq=('Hourly','Daily')
+    if freq not in lstfreq: 
+      sys.exit(('Argument freq should be in ',lstfreq))
+
+    ds = shebatower(freq)
+    ds2 = shebatower('Int'+freq.lower())
+
+    newname = {'hl':'hlmed','ws':'wsint','wd':'wdint','T':'Tint','q':'qint','rhi':'rhint','ustar':'ustarmed','hs':'hsmed','ww':'wwbis'}
+    if freq == 'Daily':
+      newname['RR_org']='RR_org_int'
+      newname['RR_ncr']='RR_ncr_int' # Different values in Daily and Intdaily but I do not know what those variables here.
+
+    for name in ds2.keys():
+      if name in newname:
+        ds[newname[name]]=ds2[name] 
+      else:
+        ds[name]=ds2[name]  # Some variables are identical and will be overwritten - some variables contain more missing values in Intdaily than in Daily - Weird but fixed by this line
+
+    return ds    
 ################################################################################
 def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']):
     """

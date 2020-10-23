@@ -16,7 +16,7 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
     """
     This function loads any observational data from this database.
     It takes three arguments :
-    - campaigns = a list of campaign names amongst ['sheba','accacia','acse']. Default : ['sheba']
+    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos']. Default : ['sheba']
     - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['tower']   
     - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Inthourly' / 'Daily' / 'Intdaily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly', 'Inthourly', 'Daily' and 'Intdaily' are available for the tower. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
@@ -58,6 +58,8 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
         lstds.extend(accacia(flights))  
       elif campaign == 'acse':
         lstds.append(acse())
+      elif campaign == 'ascos':
+        lstds.append(ascos())
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 
@@ -345,6 +347,11 @@ def ascos():
         name = var+'_'+suffix
         if name in ds.keys():
           ds=ds.drop(name)
+
+    ds['height_axis1'].attrs={'units':'m'}
+    ds['height_axis2'].attrs={'units':'m'}
+    ds['height_axis3'].attrs={'units':'m'}
+    ds['height_axis4'].attrs={'units':'m'}
 
     return ds
 ################################################################################

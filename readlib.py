@@ -9,8 +9,11 @@ import datetime
 import os
 import sys
 from glob import glob
+import xlrd
 
-rootpath='/home/guemas/Obs/'
+#rootpath='/home/guemas/Obs/'
+rootpath='/home/bleins/ASET/Obs/'
+
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
@@ -262,6 +265,86 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
       lstpamdat.append(f.isel(station=stationames.index(site)))
 
     return lstpamdat      
+################################################################################
+def shebaaircraft():
+    """
+    This function loads the SHEBA Aircraft data (Perovich et al. 2002). It takes no argument.
+    This function outputs an Xarray Dataset.
+Function issues:
+- Short names have been added to the original dataset
+- deal with the 'N/A' values and cells with several values.
+- deal with the Lat Long format
+- to be optimized?
+    Author : Sebastien Blein - December 2020  
+    """
+    ds=xr.Dataset()
+    
+    loc = (rootpath+'SHEBA/Aircraft/DonaldPerovich/JGRtables_sb.xls')
+    xls_book = xlrd.open_workbook(loc, formatting_info = True)
+
+    datecoord=[]
+    datecoord2=[]
+    check_first_date = True
+    for isheet in np.arange(3):
+        xls_sheet = xls_book.sheet_by_index(isheet)
+        #
+        for row in range(xls_sheet.nrows):
+            for col in range(xls_sheet.ncols):
+                if xls_sheet.cell_value(row, col) == 'Date':
+                    rowstart, colstart = row, col
+                if xls_sheet.cell_value(row, col) == 'Shortname':
+                    rows_short, col_short = row, col
+        if xls_sheet.cell_type(rowstart+1, colstart)==3 and xls_sheet.cell_type(rowstart, colstart+1)==1:
+            time_axis = 0
+        elif xls_sheet.cell_type(rowstart+1, colstart)==1 and xls_sheet.cell_type(rowstart, colstart+1)==3:
+            time_axis = 1
+        else:
+            sys.exit('Error: check time axis in xls.sheet num. '+str(isheet))
+
+        if time_axis == 0:
+            for col in np.arange(colstart,xls_sheet.ncols):
+                var_name = []
+                var_val = []
+                if xls_sheet.cell_value(rowstart, col) == 'Date':
+                    if check_first_date == True :
+                        check_first_date = False
+                        date = [xls_sheet.cell_value(i, colstart) for i in np.arange(rowstart+1,xls_sheet.nrows)]
+                        for d in np.arange(xls_sheet.nrows-rowstart-1):
+                            datecoord.append(datetime.datetime(* xlrd.xldate.xldate_as_tuple(date[d], xls_book.datemode)))
+                    if check_first_date == False :
+                        date_to_check = []
+                        date_to_check = [xls_sheet.cell_value(i, colstart) for i in np.arange(rowstart+1,xls_sheet.nrows)]
+                        if date_to_check != date :
+                            sys.exit('Error: xls sheets have different time array')
+                if xls_sheet.cell_value(rowstart, col) != 'Date':
+                    var_name = xls_sheet.cell_value(rows_short, col)
+                    var_val = np.array([xls_sheet.cell_value(d, col) for d in np.arange(rowstart+1,xls_sheet.nrows)])
+                    #if np.any([var_val[i]=='N/A' for i in np.arange(len(var_val))])==True:
+                    #    var_val = np.where(np.array(var_val)=='N/A',np.nan,var_val)
+                    #    var_val = np.array([np.float(var_val[i]) for i in np.arange(len(var_val))])
+                    array = xr.DataArray(var_val,dims=('date'),attrs={'long_name':xls_sheet.cell_value(rowstart, col)})
+                    ds[var_name]=array
+        if time_axis == 1:
+            for row in np.arange(rowstart,xls_sheet.nrows):
+                var_name = []
+                var_val = []
+                if xls_sheet.cell_value(row, colstart) == 'Date':
+                    if check_first_date == False :
+                        date2 = [xls_sheet.cell_value(rowstart, i) for i in np.arange(colstart+1,xls_sheet.ncols)]
+                        for d in np.arange(xls_sheet.ncols-colstart-1):
+                            datecoord2.append(datetime.datetime(* xlrd.xldate.xldate_as_tuple(date2[d], xls_book.datemode)))
+                if xls_sheet.cell_value(row, colstart) != 'Date':
+                    var_name = xls_sheet.cell_value(row, col_short)
+                    var_val = [xls_sheet.cell_value(row, d) for d in np.arange(colstart+1,xls_sheet.ncols)]
+                    #if np.any([var_val[i]=='N/A' for i in np.arange(len(var_val))])==True:
+                    #    var_val = np.where(np.array(var_val)=='N/A',np.nan,var_val)
+                    #    var_val = np.array([np.float(var_val[i]) for i in np.arange(len(var_val))])
+                    array = xr.DataArray(var_val,dims=('date2'),attrs={'long_name':xls_sheet.cell_value(row, colstart)})
+                    ds[var_name]=array
+    ds=ds.assign_coords(date=datecoord) 
+    ds=ds.assign_coords(date2=datecoord2) 
+
+    return ds
 ################################################################################
 def accacia(flights=['FAAM','MASIN']):
     """

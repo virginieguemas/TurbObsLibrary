@@ -8,11 +8,10 @@ import xarray as xr
 import datetime
 import os
 import sys
-from glob import glob
 import xlrd
+from glob import glob
 
-#rootpath='/home/guemas/Obs/'
-rootpath='/home/bleins/ASET/Obs/'
+rootpath='/home/guemas/Obs/'
 
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
@@ -270,13 +269,14 @@ def shebaaircraft():
     """
     This function loads the SHEBA Aircraft data (Perovich et al. 2002). It takes no argument.
     This function outputs an Xarray Dataset.
-Function issues:
-- Short names have been added to the original dataset
-- deal with the 'N/A' values and cells with several values.
-- deal with the Lat Long format
-- to be optimized?
+
     Author : Sebastien Blein - December 2020  
     """
+    #Function issues:
+    # - Short names have been added to the original dataset
+    # - deal with the 'N/A' values and cells with several values.
+    # - deal with the Lat Long format
+    # - to be optimized?
     ds=xr.Dataset()
     
     loc = (rootpath+'SHEBA/Aircraft/DonaldPerovich/JGRtables_sb.xls')

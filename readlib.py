@@ -412,21 +412,51 @@ def accacia(flights=['FAAM','MASIN']):
 
     return lstaccdat
 ################################################################################
-def acse():
+def oden(filename):
     """
-    This function reads the ACSE campaign data and outputs an Xarray dataset. 
+    This function reads the data provided by john.prytherch@misu.su.se from 
+    the MISU station on the Oden icebreaker (during the ACSE and AO16 campaign)
+    and outputs an Xarray dataset. It takes as argument the netcdf file name
+    provided for each campaign.
 
     Author : virginie.guemas@meteo.fr - October 2020
+    Modified : Generalized from the acse function into the oden one 
+                                      - Virginie Guemas - March 2021
     """
     sys.path.append(rootpath+'ACSE/Version2/')
     import acse_info
 
-    ds=xr.open_dataset(rootpath+'/ACSE/Version2/ACSE_CANDIFLOS_fluxes_Oden_20140710_v5.0.nc',drop_variables='doy')
+    ds=xr.open_dataset(filename,drop_variables='doy')
     # I drop doy because there is a bug in its conversion to a time series and we do not need it because we have a correct time index.
 
     for var in ds.keys():
       if acse_info.acse_names(var) != '':
         ds[var].attrs = {'long_name':acse_info.acse_names(var),'units':ds[var].units}
+      if acse_info.acse_units(var) != '':
+        ds[var].attrs = {'long_name':ds[var].long_name,'units':acse_info.acse_units(var)}
+
+    return ds
+################################################################################
+def acse():
+    """
+    This function reads the ACSE campaign data and outputs an Xarray dataset. 
+
+    Author : virginie.guemas@meteo.fr - October 2020
+    Modified : Relies on the oden function - Virginie Guemas - March 2021
+    """
+
+    ds = oden(rootpath+'/ACSE/Version2/ACSE_CANDIFLOS_fluxes_Oden_20140710_v5.0.nc')
+
+    return ds
+################################################################################
+def ao16():
+    """
+    This function reads the AO16 campaign data and outputs an Xarray dataset. 
+
+    Author : virginie.guemas@meteo.fr - March 2021
+    """
+
+    ds = oden(rootpath+'/AO16/AO2016_foremast_30min_v4_0.nc')
 
     return ds
 ################################################################################

@@ -20,12 +20,12 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
     """
     This function loads any observational data from this database.
     It takes three arguments :
-    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos']. Default : ['sheba']
-    - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida']. Default : ['tower']   
-    - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Daily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly' and 'Daily' are available for the tower. 
+    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos','ao16']. Default : ['sheba']
+    - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida','aircraft']. Default : ['tower']   
+    - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Daily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly' and 'Daily' are available for the tower. There is no choice for the aircrafts. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
     
-    It returns a list of Xarray Datasets, one per sheba site or per ACCACIA flight or for the ACSE campaign or for the ASCOS campaign.
+    It returns a list of Xarray Datasets, one per sheba site and/or one for the aircraft and/or one per ACCACIA flight and/or one for the ACSE campaign and/or one for the ASCOS campaign and/or one for the AO16 campaign.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
@@ -46,23 +46,31 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
     lstds=[]
     for campaign in campaigns:
       if campaign =='sheba':
+        indext = -1
+        indexa = -1
         if 'tower' in sites:
-          if sites != ['tower']:
-            index = sites.index('tower')
-            sites.remove('tower')
-            tmp = shebapam(freqpam,sites)
-            tmp.insert(index,shebatowergather(freq))
-            lstds.extend(tmp)
-          else:
-            lstds.append(shebatowergather(freq))
+          indext = sites.index('tower')
+          sites.remove('tower')
+        if 'aircraft' in sites:   
+          indexa = sites.index('aircraft')
+          sites.remove('aircraft')
+        if sites != []:
+          tmp = shebapam(freqpam,sites)
         else:
-          lstds.extend(shebapam(freqpam,sites))
+          tmp = []
+        if indexa >= 0:
+          tmp.insert(indexa,shebaaircraft())
+        if indext >= 0:
+          tmp.insert(indext,shebatowergather(freq))
+        lstds.extend(tmp)
       elif campaign == 'accacia':
         lstds.extend(accacia(flights))  
       elif campaign == 'acse':
         lstds.append(acse())
       elif campaign == 'ascos':
         lstds.append(ascos())
+      elif campaign == 'ao16':
+        lstds.append(ao16())
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 

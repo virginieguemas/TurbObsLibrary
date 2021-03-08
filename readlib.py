@@ -9,9 +9,11 @@ import datetime
 import os
 import sys
 import xlrd
+import readlib
+import inspect
 from glob import glob
 
-rootpath='/home/guemas/Obs/'
+rootpath=inspect.getfile(readlib)[0:-18]
 
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 

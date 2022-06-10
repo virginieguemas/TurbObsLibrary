@@ -1,5 +1,15 @@
 # This modules contain an overarching function reading all observational data 
-# from this database together with its subroutines : one for each dataset.
+# from this database, i.e. the main function, together with its subroutines,
+# one for each dataset:
+# - sheba
+# - ascos
+# - accacia
+# - acse
+# - ao16
+# - stable
+# as well as a few subsidiary functions (shebaaircraft, shebapam, shebatower, 
+# shebatowergather for sheba, readtabtxt for shebatower, accacia and stable, 
+# oden for acse and ao16, readstablefile for stable)
 #
 # Author : Virginie Guemas - 2020
 ###############################################################################
@@ -8,6 +18,7 @@ import xarray as xr
 import datetime
 import os
 import sys
+import glob
 import xlrd
 import readlib
 import inspect
@@ -546,4 +557,122 @@ def ascos():
     ds['height_axis4'].attrs={'units':'m'}
 
     return ds
+################################################################################
+def stable():
+    """
+    This function reads the STABLE campaign data and outputs an Xarray dataset. 
+
+    Author : virginie.guemas@meteo.fr - June 2022
+    """
+
+    lstflights=glob(rootpath+'STABLE/reduced/'+'*lead-parallel_avg-val_fluxes.tab')
+    # List of flight files to be loaded - 3 flights
+    # Those files contain the fluxes as well as the wind speed and temperature at flight level.
+
+    for fileflight in lstflights:
+      ds = readstablefile(fileflight, idcolumn=True)  
+
+      # Additional files (one per leg) contain the surface temperature 
+      lstlegs=glob(rootpath+'STABLE/reduced/'+'*p5_lead-parallel.tab')
+      for fileleg in lstlegs:
+         dsint = readstablefile(fileleg, idcolumn=False)
+         if fileleg==lstlegs[0]:
+           dslegs = dsint
+         else:
+           dslegs = xr.concat((dslegs,dsint),dim='time')
+
+
+      if fileflight==lstflights[0]:
+        dstot = ds
+      else:
+        dstot = xr.concat((dstot,ds),dim='time')
+
+    return dstot,dslegs
+################################################################################
+def readstablefile(filename, idcolumn=True):
+    """ 
+    This function reads a file from the STABLE campaign and stores it in an 
+    Xarray dataset. It takes two arguments:
+
+    - filename = a complete path and filename to the text file containing the STABLE table to read. 
+No default. 
+    - idcolumn = True/False whether there is an ID column or not. Default : True 
+
+    Author : virginie.guemas@meteo.fr - June 2022
+    """
+
+    if not(os.path.exists(filename)):
+      sys.exit(filename+' does not exist')
+
+    sys.path.append(rootpath+'STABLE/')
+    import stable_info
+    # Where to find a subsidiary file where I stored the information I found on the STABLE 
+    # variables
+
+    if idcolumn:
+      firstcol = 2
+    # In the STABLE files, either the first column is the leg name and the second is the date
+    else:
+    # or the first column is the date
+      firstcol = 1
+
+    lines = readtabtxt(filename,endline='\n',splitcolumn='\t')
+
+    ds=xr.Dataset() 
+    # One dataset containing all variables available for each flight or leg depending on the file
+    for ifld in range(firstcol,len(lines[0])): # we skip the ID and date/time columns
+      values=[]
+      for iline in range(1,len(lines)): # First line is variable name and unit
+        values.append(float(lines[iline][ifld]))
+        # values along a column organised into an array
+      fldid=lines[0][ifld].split("[")[0].strip().replace(' ','_')
+      # we strip the unit from the name in the first line and replace spaces by _ to get a variable id 
+      array=xr.DataArray(values,dims=('time'),attrs={'long_name':stable_info.stable_names(fldid),'units':stable_info.stable_units(fldid)})
+      # the list of values becomes an Xarray DataArray
+      ds[fldid]=array
+      # the Xarray DataArray is included into the flight or leg Dataset
+
+    timecoord=[]
+    for iline in range(1,len(lines)):
+      timecoord.append(datetime.datetime.fromisoformat(lines[iline][firstcol-1]))
+      # date/time column provides the complete date YYYY-MM-DDTHH:MM:SS
+    ds['time']=timecoord
+
+    if idcolumn: # Flight files also have leg ids as a second time axis
+      values=[]
+      for iline in range(1,len(lines)): 
+        values.append(lines[iline][0][7:10])
+      # The ids contain the date and the leg number, we keep here the leg number
+      array=xr.DataArray(values,dims=('time'),attrs={'long_name':'leg number'})
+      ds['leg']=array
+  
+    return ds
+################################################################################
+def readtabtxt(filename,endline='',splitcolumn=' '):
+    """
+    This function reads a table stored in a text file (ASCII). It returns a list
+    of lines, which are list of column values.
+    It takes three arguments:
+
+    - filename = a complete path and filename to the text file containing the table to read. No default. 
+    - endline = an optional string present at the end of each line. Example : \'\\n\'. Default : empty.
+    - splitcolumn = an optional string present between each column. Example : \'\\t\'. Default : space.
+
+    Author : virginie.guemas@meteo.fr - June 2022
+    """
+
+    if not(os.path.exists(filename)):
+      sys.exit(filename+' does not exist')
+ 
+    # Store the txt tables into a list of lines
+    f = open(filename,mode='r',encoding='utf-8')
+    lines=f.readlines()
+    f.close()
+
+    # Turn it into a list of list of column values
+    for iline in range(len(lines)):
+      lines[iline]=lines[iline].strip(endline)
+      lines[iline]=lines[iline].split(splitcolumn)
+
+    return lines
 ################################################################################

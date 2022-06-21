@@ -565,29 +565,56 @@ def stable():
     Author : virginie.guemas@meteo.fr - June 2022
     """
 
-    lstflights=glob(rootpath+'STABLE/reduced/'+'*lead-parallel_avg-val_fluxes.tab')
-    # List of flight files to be loaded - 3 flights
-    # Those files contain the fluxes as well as the wind speed and temperature at flight level.
+    lstdates=['20130310']
+    #lstdates=['20130310','20130325','20130326']
 
-    for fileflight in lstflights:
-      ds = readstablefile(fileflight, idcolumn=True)  
+    for date in lstdates:
+      fileflight=glob(rootpath+'STABLE/reduced/'+date+'*lead-parallel_avg-val_fluxes.tab')
+      # File containing the fluxes as well as the wind speed and temperature at flight level.
+      print(fileflight)
+      ds = readstablefile(fileflight[0], idcolumn=True)  
 
       # Additional files (one per leg) contain the surface temperature 
-      lstlegs=glob(rootpath+'STABLE/reduced/'+'*p5_lead-parallel.tab')
+      lstlegs=sorted(glob(rootpath+'STABLE/reduced/'+date+'*p5_lead-parallel.tab'))
+      print(lstlegs)
       for fileleg in lstlegs:
-         dsint = readstablefile(fileleg, idcolumn=False)
-         if fileleg==lstlegs[0]:
-           dslegs = dsint
-         else:
-           dslegs = xr.concat((dslegs,dsint),dim='time')
+        ds1 = readstablefile(fileleg, idcolumn=False)
+        # We need the average, standard deviation and covariance over each leg
+        ds2 = postprostable(ds1)
+        if fileleg==lstlegs[0]:
+          dslegs = ds2
+        else:
+          dslegs = xr.concat((dslegs,ds2),dim='time')
 
-
-      if fileflight==lstflights[0]:
+      if date == lstdates[0]:
         dstot = ds
       else:
         dstot = xr.concat((dstot,ds),dim='time')
 
-    return dstot,dslegs
+    return dslegs,dstot
+################################################################################
+def postprostable(dsin):
+    """
+    This function computes the turbulent fluxes, wind speed and ...
+    from raw STABLE files for each leg. It takes an Xarray Dataset storing all
+    the variables from a STABLE leg file and outputs an Xarray Dataset containing
+    turbulent fluxes and ... following the conventions of the flight files.
+
+    Author : virginie.guemas@meteo.fr - June 2022
+    """
+    # Compute the average Longitude, Latitude, Altitude, Zonal, Meridional, Vertical
+    # Wind speed, Temperature, Pressure, Relative Humidity and Surface temperature
+    # for each leg
+    dsout=xr.DataArray.mean(dsin)
+    # Put back the time in the array (removed by the DataArray.mean operation)
+    dsout=dsout.assign_coords(time=xr.DataArray.mean(dsin.time))
+    
+    # Compute Horizontal wind speed
+    dsout['Wind_vel_horizontal']=(dsout.U**2+dsout.V**2)**0.5
+    # Compute Zonal momentum flux
+    dsout['Mom_flux_x']=xr.cov(dsin.U,dsin.W)
+
+    return dsout
 ################################################################################
 def readstablefile(filename, idcolumn=True):
     """ 
@@ -641,10 +668,13 @@ No default.
     if idcolumn: # Flight files also have leg ids as a second time axis
       values=[]
       for iline in range(1,len(lines)): 
-        values.append(lines[iline][0][7:10])
+        values.append(float(lines[iline][0][8:10]))
       # The ids contain the date and the leg number, we keep here the leg number
       array=xr.DataArray(values,dims=('time'),attrs={'long_name':'leg number'})
       ds['leg']=array
+      
+      # For unknown reasons, the chronological order of flight files has been lost
+      ds=ds.sortby('leg')
   
     return ds
 ################################################################################

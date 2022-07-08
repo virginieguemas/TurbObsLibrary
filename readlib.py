@@ -413,7 +413,7 @@ def accacia(flights=['FAAM','MASIN']):
       timecoord=[]
       if flight == 'FAAM': 
         for ii in range(len(values)):
-          timecoord.append(datetime.datetime(2013,3,ds.calday[ii])+datetime.timedelta(seconds=ds.meantime.values[ii]))
+          timecoord.append(datetime.datetime(2013,3,int(ds.calday[ii]))+datetime.timedelta(seconds=ds.meantime.values[ii]))
           # Creation of time axis from the calday and meantime variables
       elif flight == 'MASIN':
         time_bnds=[]
@@ -492,7 +492,7 @@ def ascos():
     # Define the time axis from year, month, day, hour, minute, second
     months=np.where(ds.day<10,9,8)
     for ii in range(len(ds['time'])):
-      timecoord.append(datetime.datetime(year=2008,month=months[ii],day=ds.day[ii],hour=ds.hour[ii],minute=ds.minute[ii],second=ds.second[ii]))
+      timecoord.append(datetime.datetime(year=2008,month=months[ii],day=int(ds.day[ii]),hour=int(ds.hour[ii]),minute=int(ds.minute[ii]),second=int(ds.second[ii])))
     ds=ds.assign_coords(time=timecoord)
 
     # Define height level coordinates to define variables depending on (time, height) instead of var_height1, var_height2 ...

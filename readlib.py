@@ -24,7 +24,8 @@ import readlib
 import inspect
 from glob import glob
 
-rootpath=inspect.getfile(readlib)[0:-18]
+readlibpath=inspect.getfile(readlib)
+rootpath=readlibpath.split("Turb")[0]
 
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 

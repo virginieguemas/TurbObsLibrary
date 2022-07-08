@@ -411,25 +411,25 @@ def accacia(flights=['FAAM','MASIN']):
         # the Xarray DataArray is included into the flight Dataset
         
       timecoord=[]
-      if flight == 'FAAM': 
-        for ii in range(len(values)):
-          timecoord.append(datetime.datetime(2013,3,ds.calday[ii])+datetime.timedelta(seconds=ds.meantime.values[ii]))
-          # Creation of time axis from the calday and meantime variables
-      elif flight == 'MASIN':
-        time_bnds=[]
-        for ii in range(len(values)):
-          timecoord.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.meantime.values[ii]))
-          # Creation of time axis from the dayofyear and meantime variables
-          time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.starttime.values[ii]))
-          time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.endtime.values[ii]))
-          # Creation of time bounds
-        ds['time_bnds']=xr.DataArray(np.reshape(time_bnds,(int(len(time_bnds)/2),2)),dims=('time','bnds'))
-      ds=ds.assign_coords(time=timecoord)
+      #if flight == 'FAAM': 
+      #  for ii in range(len(values)):
+      #    timecoord.append(datetime.datetime(2013,3,ds.calday[ii])+datetime.timedelta(seconds=ds.meantime.values[ii]))
+      #    # Creation of time axis from the calday and meantime variables
+      #elif flight == 'MASIN':
+      #  time_bnds=[]
+      #  for ii in range(len(values)):
+      #    timecoord.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.meantime.values[ii]))
+      #    # Creation of time axis from the dayofyear and meantime variables
+      #    time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.starttime.values[ii]))
+      #    time_bnds.append(datetime.datetime(2012,12,31)+datetime.timedelta(days=ds.dayofyear.values[ii],seconds=ds.endtime.values[ii]))
+      #    # Creation of time bounds
+      #  ds['time_bnds']=xr.DataArray(np.reshape(time_bnds,(int(len(time_bnds)/2),2)),dims=('time','bnds'))
+      #ds=ds.assign_coords(time=timecoord)
       # Inclusion of time axis in the flight dataset
 
       lstaccdat.append(ds)
 
-    return lstaccdat
+    return ds #values, ds.calday, ds.meantime.values
 ################################################################################
 def oden(filename):
     """

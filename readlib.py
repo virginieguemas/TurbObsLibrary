@@ -765,14 +765,14 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
           seaicefld[var] = seaicefld[var].where(seaicefld[var]<=1.)
         # Select a subset of the grid to look for the nearest neighbour
         # First find any point close to the ship 
-        longdist = seaicefld.longitude.values-lon[jt].values
-        longdist = np.abs(np.where(longdist > 180, longdist -360, longdist))
+      #  longdist = seaicefld.longitude.values-lon[jt].values
+      #  longdist = np.abs(np.where(longdist > 180, longdist -360, longdist))
         # Compute an approximate distance to the ship as the sum of the distances in longitude and latitude
-        distdeg = np.abs(seaicefld.latitude.values-lat[jt].values) + longdist
+      #  distdeg = np.abs(seaicefld.latitude.values-lat[jt].values) + longdist
         # Find all points within a close approximate radius to the ship using previously computed distance
-        (idsy, idsx) = np.where (distdeg < 2 )
+      #  (idsy, idsx) = np.where (distdeg < 2 )
         # Use their indices to build a rectangular area to look for the neareast neighbour  
-        seaicefld = seaicefld.isel({'ygrid':slice(min(idsy),max(idsy)),'xgrid':slice(min(idsx),max(idsx))})
+      #  seaicefld = seaicefld.isel({'ygrid':slice(min(idsy),max(idsy)),'xgrid':slice(min(idsx),max(idsx))})
         # Distance between the ship location and each point on the reduced NSIDC grid
         dist = distance((lon[jt].values,lat[jt].values),(seaicefld.longitude.values,seaicefld.latitude.values))
         # Location of the nearest neighbour to the ship

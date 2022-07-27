@@ -7,9 +7,10 @@
 # - acse
 # - ao16
 # - stable
+# - nsidc
 # as well as a few subsidiary functions (shebaaircraft, shebapam, shebatower, 
 # shebatowergather for sheba, readtabtxt for shebatower, accacia and stable, 
-# oden for acse and ao16, readstablefile for stable)
+# oden for acse and ao16, readstablefile and postprostable for stable)
 #
 # Author : Virginie Guemas - 2020
 ###############################################################################
@@ -23,6 +24,7 @@ import xlrd
 import readlib
 import inspect
 from glob import glob
+from geopy.distance import geodesic
 
 rootpath=inspect.getfile(readlib)[0:-18]
 
@@ -705,4 +707,127 @@ def readtabtxt(filename,endline='',splitcolumn=' '):
       lines[iline]=lines[iline].split(splitcolumn)
 
     return lines
+################################################################################
+def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
+    """
+    This functon reads the NSIDC sea ice concentration datasets and returns sea 
+    ice concentration time series within an Xarray Dataset. The time series 
+    follow the track of a ship pathway provided by a time series of longitudes 
+    and latitudes. It takes three arguments:
+
+    - lat = a DataArray of latitudes (in degrees).
+    - lon = a DataArray of longitudes (in degrees).
+    - dataset = a NSIDC dataset id. Default : 'g02202v3'.
+    - hemisphere = 'nh' or 'sh' for Arctic or Antarctic respectively. Default : 'nh'.
+
+    Author : virginie.guemas@meteo.fr - July 2022
+    """
+    
+    # g02202v3 dataset corresponds to NSIDC id g02202 version 3. 
+    if dataset == 'g02202v3':
+      # For any dataset option, we need the basename (before the date) and the suffix (after the date)
+      basename = 'seaice_conc_daily_'+hemisphere+'_*_'
+      suffix = '_v03r01.nc'
+      # We need the list of variables to be loaded
+      lstvars = ['seaice_conc_cdr','stdev_of_seaice_conc_cdr','goddard_merged_seaice_conc','goddard_nt_seaice_conc','goddard_bt_seaice_conc']
+      # and the list of variables not to be loaded
+      dropvars = ['projection','melt_onset_day_seaice_conc_cdr','qa_of_seaice_conc_cdr']
+      # Here is a general comment describing the data to be included 
+      comment = 'The CDR algorithm output is a rule-based combination of ice concentration estimates from two well-established algorithms: the NASA Team (NT) algorithm (Cavalieri et al. 1984) and NASA Bootstrap (BT) algorithm (Comiso 1986). The CDR algorithm blends the NT and BT output concentrations by selecting, for each grid cell, the higher concentration value. The CDR algorithm capitalizes on the strengths of each contributing algorithm to produce ice concentration fields that should be more accurate than those from either algorithm alone. The CDR begins in 1987 with DMSP SSM/I passive microwave data, rather than in 1978 with NASA Nimbus-7 SMMR data, because the complete processing history of SMMR brightness temperatures cannot be traced and therefore the CDR program requirement for transparency is not met.'
+      # Provide new names in the campaign dataset with the NSIDC dataset id as a suffix
+      newnames = {}
+      for var in lstvars+['time','latitude','longitude']:
+        newnames[var]=var+'_'+dataset
+    else:
+      sys.exit('This dataset option is not coded yet')
+
+    # The time series of sea ice concentrations following the ship track will be stored in values
+    values=[]
+    for jt in range(len(lat)):
+    # We loop over the (latitude, longitude) time series providing the ship location
+      filename = glob(rootpath+'NSIDC/'+dataset+'/data/'+basename + lat.time[jt].dt.strftime('%Y%m%d').data + suffix)
+      if len(filename)!=1 :
+        sys.exit('We expect one and only one file to be loaded for a single date. Here we get '+filename)
+      # For each measurement date, we open the associated NSIDC file
+      seaicefld = xr.open_dataset(filename[0],drop_variables=dropvars).squeeze(dim='time')
+      # The NSIDC time dimension is not a dimension anymore but only a variable. The time dimension will
+      # rather be the ship measurement time. 
+      if np.isnan(lon[jt]) or np.isnan(lat[jt]):
+        # If the location of the ship is unknown, 
+        # we use a random point from the NSIDC grid and we will set every variable to np.nan
+        (idy,idx) = ([0], [0])
+      else:
+        for var in ['latitude', 'longitude']:
+          seaicefld[var] = seaicefld[var].where(seaicefld[lstvars[0]]<=1.)
+        # For latitudes, longitudes, sea ice concentrations and associated variables, we change the 
+        # continent values to np.nan. We rely on sea ice concentration values to find continents for lat/lon.
+        for var in lstvars:
+          seaicefld[var] = seaicefld[var].where(seaicefld[var]<=1.)
+        # Select a subset of the grid to look for the nearest neighbour
+        # First find any point close to the ship 
+        longdist = seaicefld.longitude.values-lon[jt].values
+        longdist = np.abs(np.where(longdist > 180, longdist -360, longdist))
+        # Compute an approximate distance to the ship as the sum of the distances in longitude and latitude
+        distdeg = np.abs(seaicefld.latitude.values-lat[jt].values) + longdist
+        # Find all points within a close approximate radius to the ship using previously computed distance
+        (idsy, idsx) = np.where (distdeg < 2 )
+        # Use their indices to build a rectangular area to look for the neareast neighbour  
+        seaicefld = seaicefld.isel({'ygrid':slice(min(idsy),max(idsy)),'xgrid':slice(min(idsx),max(idsx))})
+        # Distance between the ship location and each point on the reduced NSIDC grid
+        dist = distance((lon[jt].values,lat[jt].values),(seaicefld.longitude.values,seaicefld.latitude.values))
+        # Location of the nearest neighbour to the ship
+        (idy,idx) = np.where(dist==np.nanmin(dist))
+      # Selection of the nearest neighbour and removal of the grid of the NSIDC file
+      seaicefld = seaicefld.isel({'ygrid':idy[0],'xgrid':idx[0]}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
+      if np.isnan(lon[jt]) or np.isnan(lat[jt]):
+      # If the location of the ship is unknown,  we set every variable to np.nan
+        for var in lstvars+['latitude','longitude']:
+          seaicefld[var]=np.nan
+      # Inclusion in the list to concatenate using the new variable names and turning the coordinates into variables (the coordinates will be the ship ones, the NSIDC are kept for check)
+      values.append(seaicefld.reset_coords(['time','latitude','longitude']).rename(newnames))
+
+    # Concatenate the Xarray datasets extracted for each measurement time
+    seaice=xr.concat(values,dim='time')
+    # Set the time axis to be the same as the campaign Xarray Dataset one
+    seaice['time']=lon.time
+    # Drop the general NSIDC attributes (but keep the ones for each variable) and keep a brief description
+    # of the nsidc dataset
+    seaice.attrs={'nsidc_'+dataset:comment} 
+
+    return seaice
+################################################################################
+def distance(coord1, coord2):
+    """
+    This function computes the distance in kilometers between two points at the 
+    surface of the Earth. It takes two arguments :
+    - the coordinates of the first point (lon, lat) in degrees as a tuple
+    - the coordinates of the second point (lon, lat) in degrees as a tuple
+    The longitudes and latitudes can either be a single location for coord1
+    and an array for coord2 or vice-versa or be two arrays with the same 
+    dimensions.
+
+    Author : virginie.guemas@meteo.fr - July 2022
+    """
+
+    (lon1, lat1) = coord1
+    (lon2, lat2) = coord2
+
+    if lon1.shape != lat1.shape or lon2.shape != lat2.shape :
+      sys.exit("lon1 and lat1 should have the same dimensions on one hand as well as lon2 and lat2 on the other hand")
+
+    if lon1.shape != lon2.shape :
+      if lon1.shape!=() and lon2.shape!=():
+        sys.exit("Either provide 2 coordinates array of same dimensions or one location and an array of any dimension.")
+
+    R = 6371.0  # Earth radius
+
+    # Latitude and longitude distance in radians
+    dlon = np.radians(lon2) - np.radians(lon1)
+    dlat = np.radians(lat2) - np.radians(lat1)
+
+    #Haversine formula
+    a = np.sin(dlat / 2)**2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2)**2
+    distance = 2*R*np.arcsin(np.sqrt(a))
+
+    return distance
 ################################################################################

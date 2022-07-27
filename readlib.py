@@ -723,6 +723,8 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
     Author : virginie.guemas@meteo.fr - July 2022
     """
     
+    loose_grid_step = 20
+
     # g02202v3 dataset corresponds to NSIDC id g02202 version 3. 
     if dataset == 'g02202v3':
       # For any dataset option, we need the basename (before the date) and the suffix (after the date)
@@ -754,8 +756,11 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       # rather be the ship measurement time. 
       if np.isnan(lon[jt]) or np.isnan(lat[jt]):
         # If the location of the ship is unknown, 
-        # we use a random point from the NSIDC grid and we will set every variable to np.nan
-        (idy,idx) = ([0], [0])
+        # we use a random point from the NSIDC grid
+        seaicefld = seaicefld.isel({'ygrid':0,'xgrid':0}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
+        # we set every variable to np.nan
+        for var in lstvars+['latitude','longitude']:
+          seaicefld[var]=np.nan
       else:
         for var in ['latitude', 'longitude']:
           seaicefld[var] = seaicefld[var].where(seaicefld[lstvars[0]]<=1.)
@@ -763,26 +768,21 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
         # continent values to np.nan. We rely on sea ice concentration values to find continents for lat/lon.
         for var in lstvars:
           seaicefld[var] = seaicefld[var].where(seaicefld[var]<=1.)
-        # Select a subset of the grid to look for the nearest neighbour
-        # First find any point close to the ship 
-      #  longdist = seaicefld.longitude.values-lon[jt].values
-      #  longdist = np.abs(np.where(longdist > 180, longdist -360, longdist))
-        # Compute an approximate distance to the ship as the sum of the distances in longitude and latitude
-      #  distdeg = np.abs(seaicefld.latitude.values-lat[jt].values) + longdist
-        # Find all points within a close approximate radius to the ship using previously computed distance
-      #  (idsy, idsx) = np.where (distdeg < 2 )
-        # Use their indices to build a rectangular area to look for the neareast neighbour  
-      #  seaicefld = seaicefld.isel({'ygrid':slice(min(idsy),max(idsy)),'xgrid':slice(min(idsx),max(idsx))})
-        # Distance between the ship location and each point on the reduced NSIDC grid
+        # Distance between the ship location and each point on the NSIDC grid
         dist = distance((lon[jt].values,lat[jt].values),(seaicefld.longitude.values,seaicefld.latitude.values))
+        # Loose scanning of the grid to speed up the process, i.e. every loose_grid_step points
+        left_shift = int(loose_grid_step/2)
+        distbis = dist[left_shift:seaicefld.latitude.shape[0]:loose_grid_step,left_shift:seaicefld.latitude.shape[1]:loose_grid_step]
+        # Location of the nearest neighbour to the ship on the loose grid
+        (idyb,idxb) = np.where(distbis==np.nanmin(distbis))
+        # Reduction of the NSIDC grid to an area around this approximate neareast neighbour
+        halo = int(loose_grid_step/4)
+        seaicefld = seaicefld.isel({'ygrid':slice(-halo+idyb[0]*loose_grid_step,(idyb[0]+1)*loose_grid_step+halo),'xgrid':slice(-halo+idxb[0]*loose_grid_step,(idxb[0]+1)*loose_grid_step+halo)})
+        dist = dist[slice(-halo+idyb[0]*loose_grid_step,(idyb[0]+1)*loose_grid_step+halo),slice(-halo+idxb[0]*loose_grid_step,(idxb[0]+1)*loose_grid_step+halo)]
         # Location of the nearest neighbour to the ship
         (idy,idx) = np.where(dist==np.nanmin(dist))
-      # Selection of the nearest neighbour and removal of the grid of the NSIDC file
-      seaicefld = seaicefld.isel({'ygrid':idy[0],'xgrid':idx[0]}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
-      if np.isnan(lon[jt]) or np.isnan(lat[jt]):
-      # If the location of the ship is unknown,  we set every variable to np.nan
-        for var in lstvars+['latitude','longitude']:
-          seaicefld[var]=np.nan
+        # Selection of the nearest neighbour and removal of the grid of the NSIDC file
+        seaicefld = seaicefld.isel({'ygrid':idy[0],'xgrid':idx[0]}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
       # Inclusion in the list to concatenate using the new variable names and turning the coordinates into variables (the coordinates will be the ship ones, the NSIDC are kept for check)
       values.append(seaicefld.reset_coords(['time','latitude','longitude']).rename(newnames))
 

@@ -191,6 +191,11 @@ def shebatower(freq='Hourly'):
     if freq == 'Inthourly' or freq == 'Intdaily' :
       ds['height'].attrs={'units':'m'}
 
+    # Include NSIDC sea ice concentrations
+    sic = nsidc(lat=ds.lat,lon=ds.lon)
+    ds = xr.Dataset.merge(ds, sic)
+    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+
     return ds
 ################################################################################
 def shebatowergather(freq='Hourly'):
@@ -429,6 +434,11 @@ def accacia(flights=['FAAM','MASIN']):
       ds=ds.assign_coords(time=timecoord)
       # Inclusion of time axis in the flight dataset
 
+      # Include NSIDC sea ice concentrations
+      sic = nsidc(lat=ds.lat,lon=ds.lon)
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+
       lstaccdat.append(ds)
 
     return lstaccdat
@@ -467,6 +477,11 @@ def acse():
     """
 
     ds = oden(rootpath+'/ACSE/Version2/ACSE_CANDIFLOS_fluxes_Oden_20140710_v5.0.nc')
+
+    # Include NSIDC sea ice concentrations
+    sic = nsidc(lat=ds.lat,lon=ds.lon)
+    ds = xr.Dataset.merge(ds, sic)
+    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################
@@ -557,6 +572,11 @@ def ascos():
     ds['height_axis2'].attrs={'units':'m'}
     ds['height_axis3'].attrs={'units':'m'}
     ds['height_axis4'].attrs={'units':'m'}
+
+    # Include NSIDC sea ice concentrations
+    sic = nsidc(lat=ds.latitude,lon=ds.longitude)
+    ds = xr.Dataset.merge(ds, sic)
+    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################

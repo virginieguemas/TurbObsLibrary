@@ -743,8 +743,6 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
     else:
       sys.exit('This dataset option is not coded yet')
 
-    # The time series of sea ice concentrations following the ship track will be stored in values
-    values=[]
     for jt in range(len(lat)):
     # We loop over the (latitude, longitude) time series providing the ship location
       filename = glob(rootpath+'NSIDC/'+dataset+'/data/'+basename + lat.time[jt].dt.strftime('%Y%m%d').data + suffix)
@@ -754,7 +752,7 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       seaicefld = xr.open_dataset(filename[0],drop_variables=dropvars).squeeze(dim='time')
       # The NSIDC time dimension is not a dimension anymore but only a variable. The time dimension will
       # rather be the ship measurement time. 
-      if np.isnan(lon[jt]) or np.isnan(lat[jt]):
+      if np.isnan(lon[jt]) or np.isnan(lat[jt]) or filename[0] == '/home/guemas/Obs/NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980311_v03r01.nc' or filename[0] == '/home/guemas/Obs/NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980820_v03r01.nc':
         # If the location of the ship is unknown, 
         # we use a random point from the NSIDC grid
         seaicefld = seaicefld.isel({'ygrid':0,'xgrid':0}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
@@ -783,11 +781,16 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
         (idy,idx) = np.where(dist==np.nanmin(dist))
         # Selection of the nearest neighbour and removal of the grid of the NSIDC file
         seaicefld = seaicefld.isel({'ygrid':idy[0],'xgrid':idx[0]}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])
-      # Inclusion in the list to concatenate using the new variable names and turning the coordinates into variables (the coordinates will be the ship ones, the NSIDC are kept for check)
-      values.append(seaicefld.reset_coords(['time','latitude','longitude']).rename(newnames))
+      # Turn the coordinates into variables (the coordinates will be the ship ones, the NSIDC are kept for check) and rename all variables to include the dataset id
+      seaicefld = seaicefld.reset_coords(['time','latitude','longitude']).rename(newnames)
+      # Concatenate the Xarray datasets extracted for each measurement time
+      if 'seaice' in locals().keys():
+        seaice = xr.concat([seaice,seaicefld],dim='time')
+      else:
+        seaice = seaicefld
+      # Close the NSIDC netcdf file
+      seaicefld.close()
 
-    # Concatenate the Xarray datasets extracted for each measurement time
-    seaice=xr.concat(values,dim='time')
     # Set the time axis to be the same as the campaign Xarray Dataset one
     seaice['time']=lon.time
     # Drop the general NSIDC attributes (but keep the ones for each variable) and keep a brief description

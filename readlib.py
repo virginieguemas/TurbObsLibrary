@@ -789,7 +789,7 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       seaicefld = xr.open_dataset(filename[0],drop_variables=dropvars).squeeze(dim='time')
       # The NSIDC time dimension is not a dimension anymore but only a variable. The time dimension will
       # rather be the ship measurement time. 
-      if np.isnan(lon[jt]) or np.isnan(lat[jt]) or filename[0] == '/home/guemas/Obs/NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980311_v03r01.nc' or filename[0] == '/home/guemas/Obs/NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980820_v03r01.nc':
+      if np.isnan(lon[jt]) or np.isnan(lat[jt]) or filename[0] == rootpath+'NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980311_v03r01.nc' or filename[0] == rootpath+'NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980820_v03r01.nc':
         # If the location of the ship is unknown, 
         # we use a random point from the NSIDC grid
         seaicefld = seaicefld.isel({'ygrid':0,'xgrid':0}).reset_coords(['xgrid','ygrid']).drop_vars(['xgrid','ygrid'])

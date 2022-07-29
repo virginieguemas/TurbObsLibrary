@@ -289,7 +289,15 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
     lstpamdat=[]      # 1 output dataset per PAM station listed in sites
     # Split the f dataset into one per PAM station
     for site in sites: # 4 stations 
-      lstpamdat.append(f.isel(station=stationames.index(site)))
+      ds = f.isel(station=stationames.index(site))
+
+      # Include NSIDC sea ice concentrations
+      sic = nsidc(lat=ds.latitude,lon=ds.longitude)
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+
+      # Output as a list of datasets per PAM station
+      lstpamdat.append(ds)
 
     return lstpamdat      
 ################################################################################
@@ -371,6 +379,11 @@ def shebaaircraft():
                     ds[var_name]=array
     ds=ds.assign_coords(date=datecoord) 
     ds=ds.assign_coords(date2=datecoord2) 
+
+    # Include NSIDC sea ice concentrations
+    sic = nsidc(lat=ds.lat,lon=ds.lon)
+    ds = xr.Dataset.merge(ds, sic)
+    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################

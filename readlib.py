@@ -24,10 +24,9 @@ import xlrd
 import readlib
 import inspect
 from glob import glob
-from geopy.distance import geodesic
 
 rootpath=inspect.getfile(readlib)[0:-18]
-
+loadice = True
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
@@ -192,9 +191,10 @@ def shebatower(freq='Hourly'):
       ds['height'].attrs={'units':'m'}
 
     # Include NSIDC sea ice concentrations
-    sic = nsidc(lat=ds.lat,lon=ds.lon)
-    ds = xr.Dataset.merge(ds, sic)
-    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+    if loadice:
+      sic = nsidc(lat=ds.lat,lon=ds.lon)
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################
@@ -292,9 +292,10 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
       ds = f.isel(station=stationames.index(site))
 
       # Include NSIDC sea ice concentrations
-      sic = nsidc(lat=ds.latitude,lon=ds.longitude)
-      ds = xr.Dataset.merge(ds, sic)
-      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+      if loadice:
+        sic = nsidc(lat=ds.latitude,lon=ds.longitude)
+        ds = xr.Dataset.merge(ds, sic)
+        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
       # Output as a list of datasets per PAM station
       lstpamdat.append(ds)
@@ -381,9 +382,9 @@ def shebaaircraft():
     ds=ds.assign_coords(date2=datecoord2) 
 
     # Include NSIDC sea ice concentrations
-    sic = nsidc(lat=ds.lat,lon=ds.lon)
-    ds = xr.Dataset.merge(ds, sic)
-    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+    #sic = nsidc(lat=ds.rename({'date':'time'}).lat,lon=ds.rename({'date':'time'}).lon)
+    #ds = xr.Dataset.merge(ds.rename({'time':'date'}), sic)
+    #ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################
@@ -448,9 +449,10 @@ def accacia(flights=['FAAM','MASIN']):
       # Inclusion of time axis in the flight dataset
 
       # Include NSIDC sea ice concentrations
-      sic = nsidc(lat=ds.lat,lon=ds.lon)
-      ds = xr.Dataset.merge(ds, sic)
-      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+      if loadice:
+        sic = nsidc(lat=ds.lat,lon=ds.lon)
+        ds = xr.Dataset.merge(ds, sic)
+        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
       lstaccdat.append(ds)
 
@@ -492,9 +494,10 @@ def acse():
     ds = oden(rootpath+'/ACSE/Version2/ACSE_CANDIFLOS_fluxes_Oden_20140710_v5.0.nc')
 
     # Include NSIDC sea ice concentrations
-    sic = nsidc(lat=ds.lat,lon=ds.lon)
-    ds = xr.Dataset.merge(ds, sic)
-    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+    if loadice:
+      sic = nsidc(lat=ds.lat,lon=ds.lon)
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################
@@ -587,9 +590,10 @@ def ascos():
     ds['height_axis4'].attrs={'units':'m'}
 
     # Include NSIDC sea ice concentrations
-    sic = nsidc(lat=ds.latitude,lon=ds.longitude)
-    ds = xr.Dataset.merge(ds, sic)
-    ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+    if loadice:
+      sic = nsidc(lat=ds.latitude,lon=ds.longitude)
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
     return ds
 ################################################################################

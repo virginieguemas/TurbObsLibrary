@@ -21,12 +21,12 @@ import os
 import sys
 import glob
 import xlrd
-import readlib
+import readlib, meteolib
 import inspect
 from glob import glob
 
 rootpath=inspect.getfile(readlib)[0:-18]
-loadice = True
+loadice = False
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
@@ -647,11 +647,38 @@ def postprostable(dsin):
     dsout=xr.DataArray.mean(dsin)
     # Put back the time in the array (removed by the DataArray.mean operation)
     dsout=dsout.assign_coords(time=xr.DataArray.mean(dsin.time))
+    # Restore attributes 
+    for var in dsout.data_vars:
+      dsout[var].attrs=dsin[var].attrs
     
     # Compute Horizontal wind speed
     dsout['Wind_vel_horizontal']=(dsout.U**2+dsout.V**2)**0.5
+    dsout['Wind_vel_horizontal'].attrs={'long_name':'Horizontal wind speed from mean U and V from five-hole probe at nose-boom','units':'m s-1'}
+    # Compute Horizontal wind speed standard deviation
+    dsout['Wind_vel_std_dev']=xr.DataArray.std((dsin.U**2+dsin.V**2)**0.5, ddof=1)
+    dsout['Wind_vel_std_dev'].attrs={'long_name':'Horizontal wind speed standard deviation along the leg from five-hole probe at nose-boom','units':'m s-1'}
+    # Not completely satisfactory - up to 0.05 difference with the one provided by Lupkes et al. Why?
+
+    # Compute Specific humidity at flight level
+    dsout['Q']=meteolib.Q(rh=dsout.RH,T=dsout.TTT + 273.15, P=dsout.PPPP)
+    dsout['Q'].attrs={'long_name':'Specific humidity from RH, TTT and PPPP at nose boom','units':'kg kg'}
+    # Compute Air density
+    dsout['Density_air']=meteolib.RHO(q=dsout.Q,T=dsout.TTT + 273.15, P=dsout.PPPP)
+    dsout['Density_air'].attrs={'long_name':'Air density from Q, TTT and PPPP at nose boom','units':'kg m-3'}
+
+    # Compute Potential air temperature
+    dsout['THETA']=meteolib.Theta(q=dsout.Q,T=dsout.TTT + 273.15, P=dsout.PPPP)
+    dsout['THETA'].attrs={'long_name':'Potential air temperature from Q, from TTT and PPPP at nose boom','units':'K'}
+    # Compute Potential air temperature standard deviation
+    dsout['THETA_std_dev']=xr.DataArray.std(meteolib.Theta(T=dsin.TTT + 273.15, P=dsin.PPPP))
+    dsout['THETA_std_dev'].attrs={'long_name':'Potential air temperature standard deviation at nose boom','units':'K'}
+    # Not completely satisfactory - up to 0.02 difference with the one provided by Lupkes et al. Why?
+
     # Compute Zonal momentum flux
-    dsout['Mom_flux_x']=xr.cov(dsin.U,dsin.W)
+    # dsout['Mom_flux_x']=xr.cov(dsin.U,dsin.W) Same result as below
+    dsout['Mom_flux_x']=dsout.Density_air * xr.DataArray.mean((dsin.U -xr.DataArray.mean(dsin.U))*(dsin.W-xr.DataArray.mean(dsin.W)))
+    dsout['THETA_std_dev'].attrs={'long_name':'West-East momentum flux estimated through the eddy-covariance method','units':'N m-2'}
+    # Nothing to do with what is provided by Lupkes ??????????????????????????????????????????????????????????
 
     return dsout
 ################################################################################

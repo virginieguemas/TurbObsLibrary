@@ -26,18 +26,18 @@ import inspect
 from glob import glob
 
 rootpath=inspect.getfile(readlib)[0:-18]
-loadice = False
+loadice = True
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
     This function loads any observational data from this database.
     It takes three arguments :
-    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos','ao16']. Default : ['sheba']
+    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos','ao16','stable']. Default : ['sheba']
     - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida','aircraft']. Default : ['tower']   
     - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Daily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly' and 'Daily' are available for the tower. There is no choice for the aircrafts. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
     
-    It returns a list of Xarray Datasets, one per sheba site and/or one for the aircraft and/or one per ACCACIA flight and/or one for the ACSE campaign and/or one for the ASCOS campaign and/or one for the AO16 campaign.
+    It returns a list of Xarray Datasets, one per sheba site and/or one for the aircraft and/or one per ACCACIA flight and/or one for the ACSE campaign and/or one for the ASCOS campaign and/or one for the AO16 campaign and/or one for the STABLE campaign.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
@@ -83,6 +83,8 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
         lstds.append(ascos())
       elif campaign == 'ao16':
         lstds.append(ao16())
+      elif campaign == 'stable':
+        lstds.append(stable())
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 
@@ -602,35 +604,44 @@ def stable():
     This function reads the STABLE campaign data and outputs an Xarray dataset. 
 
     Author : virginie.guemas@meteo.fr - June 2022
+    Modified : Merging of different files and sea ice concentration - Virginie Guemas - Octoboer 2022
     """
 
-    lstdates=['20130310']
-    #lstdates=['20130310','20130325','20130326']
+    lstdates=['20130310','20130325','20130326']
 
     for date in lstdates:
       fileflight=glob(rootpath+'STABLE/reduced/'+date+'*lead-parallel_avg-val_fluxes.tab')
       # File containing the fluxes as well as the wind speed and temperature at flight level.
-      print(fileflight)
       ds = readstablefile(fileflight[0], idcolumn=True)  
 
-      # Additional files (one per leg) contain the surface temperature 
+      # Additional files (one per leg) contain the surface temperature and pressure and
+      # humidity at flight level
       lstlegs=sorted(glob(rootpath+'STABLE/reduced/'+date+'*p5_lead-parallel.tab'))
-      print(lstlegs)
       for fileleg in lstlegs:
         ds1 = readstablefile(fileleg, idcolumn=False)
-        # We need the average, standard deviation and covariance over each leg
+        # We need the average along each leg
         ds2 = postprostable(ds1)
         if fileleg==lstlegs[0]:
           dslegs = ds2
         else:
           dslegs = xr.concat((dslegs,ds2),dim='time')
 
+      # Merge the datasets from all files from this flight
+      ds=xr.merge([ds,dslegs],compat='override')
+
+      # Final concatenation of the flights
       if date == lstdates[0]:
         dstot = ds
       else:
         dstot = xr.concat((dstot,ds),dim='time')
 
-    return dslegs,dstot
+    # Include NSIDC sea ice concentrations
+    if loadice:
+      sic = nsidc(lat=dstot.Latitude,lon=dstot.Longitude)
+      dstot = xr.Dataset.merge(dstot, sic)
+      dstot.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+
+    return dstot
 ################################################################################
 def postprostable(dsin, fluxes = False):
     """
@@ -640,6 +651,7 @@ def postprostable(dsin, fluxes = False):
     turbulent fluxes and ... following the conventions of the flight files.
 
     Author : virginie.guemas@meteo.fr - June 2022
+    Modified : Aditional output variables and fluxes option - Virginie Guemas - October 2022
     """
     # Compute Specific humidity at flight level
     dsin['Q']=meteolib.Q(rh=dsin.RH,T=dsin.TTT + 273.15, P=dsin.PPPP)

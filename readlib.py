@@ -26,7 +26,7 @@ import inspect
 from glob import glob
 
 rootpath=inspect.getfile(readlib)[0:-18]
-loadice = True
+loadice = False
 ###############################################################################
 def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
     """
@@ -918,3 +918,76 @@ def distance(coord1, coord2):
 
     return distance
 ################################################################################
+def mosaic():
+
+    towerpath=rootpath+'MOSAiC/Tower/ftpnoaa/2_level_product/version3/'
+    towerroot='mosseb.metcity.level2v3.10min.'
+
+    start_date=datetime.date(2019,10,15)
+    end_date=datetime.date(2019,10,16)
+    #end_date=datetime.date(2020,9,18)
+
+    date = start_date
+    lstds=[]
+    while date <= end_date:
+      date += datetime.timedelta(days=1)    
+      lstds.append(xr.open_dataset(towerpath+towerroot+date.strftime("%Y%m%d")+'.000000.nc'))
+     
+    ds = xr.concat(lstds, dim = 'time')
+
+    height = [2, 6, 10]
+    ds['height'] = xr.DataArray(height, dims=['height'], attrs={'units':'m'})
+
+    lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar']
+    lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT']
+    lstvars.extend(lstvarsqc)
+    lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs']
+    lstvars.extend(lstvarfreq)
+    lstattrs = ['min_val','max_val','avg_val','height_start','height_end','height_change_time','percent_missing']
+    for var in lstvars:
+      if var in lstvarsqc:
+        lstexts = ['', '_qc']
+      else: 
+        lstexts = ['']
+      for ext in lstexts:
+        if var in lstvarfreq:
+          var0 = np.empty((len(ds['time']),60,len(height)))*np.nan      
+        else:
+          var0 = np.empty((len(ds['time']),len(height)))*np.nan      
+        for hh in range(len(height)):
+          name = var+'_'+str(height[hh])+'m'+ext
+          if var in lstvarfreq:
+              var0[:,:,hh] = ds[name].values
+          else:
+            var0[:,hh] = ds[name].values
+          attrs = ds[name].attrs
+          ds=ds.drop(name)  
+
+        if var in lstvarfreq:
+          ds[var+ext] = xr.DataArray(var0, dims=['time','freq','height'], attrs=attrs)
+        else:
+          if var == 'zeta_level_n':
+            var = 'zeta'
+          ds[var+ext] = xr.DataArray(var0, dims=['time','height'], attrs=attrs)
+        ds[var+ext].attrs['location'] = 'met city tower'
+        if var == 'zeta':
+          ds[var].attrs['long_name'] = 'Monin-Obukhov stability parameter, z/L'
+        if var == 'phi_U':
+          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, U is the streamwise wind vector'
+        if var == 'phi_V':
+          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, V is the streamwise wind vector'
+        if var == 'phi_W':
+          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, W is the streamwise wind vector'
+        if var == 'phi_T':
+          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations'
+        if var == 'phi_UT':
+          ds[var].attrs['long_name'] = 'MO universal function for the horizontal heat flux, U is the streamwise wind vector'
+        if var == 'Phi_epsilon':
+          ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_epsilon based on the median epsilon'
+        if var == 'Phi_NT' :
+          ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_NT'
+        for at in lstattrs:
+          if (hasattr(ds[var+ext],at)) & (var!=lstvars[-1]):
+            del ds[var+ext].attrs[at]
+
+    return ds

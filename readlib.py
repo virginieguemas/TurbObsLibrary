@@ -918,11 +918,14 @@ def distance(coord1, coord2):
 
     return distance
 ################################################################################
-def mosaic(site='tower'):
+def mosaic(site='tower', startdate='2019-10-09', enddate='2020-10-01'):
     """
     This function loads the MOSAiC data either from the tower, or from one 
-    of the AFS staion around. It takes one argument :
+    of the AFS staion around. It takes three arguments :
     - site = 'tower' / 'asf30' / 'asf40' / 'asf50'. Default : 'tower'
+    - startdate = YYYY-MM-DD. Example : '2019-10-09'
+    - enddate = YYYY-MM-DD. Example : '2020-10-01'
+    Please do not load the whole MOSAiC campaign at once. It takes too long.
 
     This function outputs an Xarray Dataset.
 
@@ -934,15 +937,15 @@ def mosaic(site='tower'):
       sys.exit(('Argument site should be in ',lstsites))
 
     # Location of MOSAic files and basename
-    directory = { 'tower':'Tower','asf30':'ASF/ASF30','asf40':'ASF/ASF40','asf50':'ASF/ASF50'}
-    path=rootpath+'MOSAiC/'+directory[site]+'/ftpnoaa/2_level_product/version3/'
+    directory1 = { 'tower':'Tower','asf30':'ASF/ASF30','asf40':'ASF/ASF40','asf50':'ASF/ASF50'}
+    directory2 = { 'tower':'','asf30':'_asfs30','asf40':'_asfs40','asf50':'_asfs50'}
+    path=rootpath+'MOSAiC/'+directory1[site]+'/ftpnoaa/2_level_product'+directory2[site]+'/version3/'
     rootname = { 'tower':'metcity','asf30':'asfs30','asf40':'asfs40','asf50':'asfs50'}
     basename='mosseb.'+rootname[site]+'.level2v3.10min.'
 
     # Period covered by files
-    start_date=datetime.date(2019,10,15)
-    end_date=datetime.date(2019,10,31)
-    #end_date=datetime.date(2020,9,20)
+    start_date=datetime.date(int(startdate[0:4]),int(startdate[5:7]),int(startdate[8:10]))
+    end_date=datetime.date(int(enddate[0:4]),int(enddate[5:7]),int(enddate[8:10]))
 
     # Loop on dates 
     date = start_date

@@ -28,24 +28,31 @@ from glob import glob
 rootpath=inspect.getfile(readlib)[0:-18]
 loadice = False
 ###############################################################################
-def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASIN']) : 
+def main(campaigns=['sheba'],sheba_sites=['tower'],mosaic_sites=['tower'],freq='Hourly',flights=['FAAM','MASIN'],startdate='2019-10-09', enddate='2019-10-31') : 
     """
     This function loads any observational data from this database.
-    It takes three arguments :
-    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos','ao16','stable']. Default : ['sheba']
-    - sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida','aircraft']. Default : ['tower']   
+    It takes seven arguments :
+    - campaigns = a list of campaign names amongst ['sheba','accacia','acse','ascos','ao16','stable','mosaic']. Default : ['sheba']
+    - sheba_sites = a list of sheba sites amongst ['tower', 'Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida','aircraft']. Default : ['tower']   
+    - mosaic_sites = a list of mosaic sites amongst ['tower','asf30','asf40','asf50']. Default : ['tower']
     - freq = a list of sheba output frequency amongst '5min' / 'Hourly' / 'Daily'. Default : 'Hourly'. 'Hourly' and '5min' are available for the PAM stations. 'Hourly' and 'Daily' are available for the tower. There is no choice for the aircrafts. 
     - flights = a list of accacia flight names amongst [ 'FAAM', 'MASIN' ]. Default : flights=['FAAM','MASIN'] 
+    - startdate = YYYY-MM-DD. Only for MOSAiC. Example : '2019-10-09'
+    - enddate = YYYY-MM-DD. Only for MOSAiC. Example : '2020-10-01'
+    MOSAiC data starts on 2019-10-09 and end on 2020-10-01.
     
-    It returns a list of Xarray Datasets, one per sheba site and/or one for the aircraft and/or one per ACCACIA flight and/or one for the ACSE campaign and/or one for the ASCOS campaign and/or one for the AO16 campaign and/or one for the STABLE campaign.
+    It returns a list of Xarray Datasets, one per sheba site and/or per mosaic site and/or one for the sheba aircraft and/or one per ACCACIA flight and/or one for the ACSE campaign and/or one for the ASCOS campaign and/or one for the AO16 campaign and/or one for the STABLE campaign.
 
     Author : virginie.guemas@meteo.fr - 2020
     """
     if not isinstance(campaigns,list):
       sys.exit('Argument campaigns should be a list')
 
-    if not isinstance(sites,list):
-      sys.exit('Argument sites should be a list')
+    if not isinstance(sheba_sites,list):
+      sys.exit('Argument sheba_sites should be a list')
+
+    if not isinstance(mosaic_sites,list):
+      sys.exit('Argument mosaic_sites should be a list')
 
     if not isinstance(flights,list):
       sys.exit('Argument flights should be a list')
@@ -60,14 +67,14 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
       if campaign =='sheba':
         indext = -1
         indexa = -1
-        if 'tower' in sites:
-          indext = sites.index('tower')
-          sites.remove('tower')
-        if 'aircraft' in sites:   
-          indexa = sites.index('aircraft')
-          sites.remove('aircraft')
-        if sites != []:
-          tmp = shebapam(freqpam,sites)
+        if 'tower' in sheba_sites:
+          indext = sheba_sites.index('tower')
+          sheba_sites.remove('tower')
+        if 'aircraft' in sheba_sites:   
+          indexa = sheba_sites.index('aircraft')
+          sheba_sites.remove('aircraft')
+        if sheba_sites != []:
+          tmp = shebapam(freqpam,sheba_sites)
         else:
           tmp = []
         if indexa >= 0:
@@ -85,6 +92,9 @@ def main(campaigns=['sheba'],sites=['tower'],freq='Hourly',flights=['FAAM','MASI
         lstds.append(ao16())
       elif campaign == 'stable':
         lstds.append(stable())
+      elif campaign == 'mosaic':
+        for site in mosaic_sites:
+          lstds.append(mosaic(site,startdate,enddate))
       else:
         sys.exit('Error : unknown campaign in the campaigns list')
 
@@ -253,7 +263,7 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
     stationames=('Atlanta','Cleveland-Seattle-Maui','Baltimore','Florida')
     for site in sites:
       if site not in stationames:
-        sys.exit('Argument sites should be a list of stations from',stationames)
+        sys.exit(('Argument sites should be a list of stations from',stationames))
 
     filebase={'1hour':'isff','5min':'sheba'}
     dirname=rootpath+'SHEBA/Mesonet_PAMIII/'+freq+'/'
@@ -918,7 +928,7 @@ def distance(coord1, coord2):
 
     return distance
 ################################################################################
-def mosaic(site='tower', startdate='2019-10-09', enddate='2020-10-01'):
+def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     """
     This function loads the MOSAiC data either from the tower, or from one 
     of the AFS staion around. It takes three arguments :
@@ -926,6 +936,7 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2020-10-01'):
     - startdate = YYYY-MM-DD. Example : '2019-10-09'
     - enddate = YYYY-MM-DD. Example : '2020-10-01'
     Please do not load the whole MOSAiC campaign at once. It takes too long.
+    Data starts on 2019-10-09 and end on 2020-10-01.
 
     This function outputs an Xarray Dataset.
 

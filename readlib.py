@@ -920,49 +920,70 @@ def distance(coord1, coord2):
 ################################################################################
 def mosaic():
 
+    # Location of MOSAic files and basename
     towerpath=rootpath+'MOSAiC/Tower/ftpnoaa/2_level_product/version3/'
     towerroot='mosseb.metcity.level2v3.10min.'
 
+    # Period covered by files
     start_date=datetime.date(2019,10,15)
-    end_date=datetime.date(2019,10,16)
-    #end_date=datetime.date(2020,9,18)
+    #end_date=datetime.date(2019,10,16)
+    end_date=datetime.date(2020,9,18)
 
+    # Loop on dates 
     date = start_date
     lstds=[]
     while date <= end_date:
       date += datetime.timedelta(days=1)    
-      lstds.append(xr.open_dataset(towerpath+towerroot+date.strftime("%Y%m%d")+'.000000.nc'))
+      # Data are stored in daily files
+      filename = towerpath+towerroot+date.strftime("%Y%m%d")+'.000000.nc'
+      # Whenever present (intermittency), files loaded as Xarray datasets
+      if os.path.exists(filename):
+        lstds.append(xr.open_dataset(filename))
      
+    # Concatenation of datasets
     ds = xr.concat(lstds, dim = 'time')
 
+    # Creation of a height axis to reorganize data in (time, height) format
     height = [2, 6, 10]
     ds['height'] = xr.DataArray(height, dims=['height'], attrs={'units':'m'})
 
+    # List of variables which are present as variables and variables_qc
     lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar']
+    # List of variables which are present only as variables
     lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT']
     lstvars.extend(lstvarsqc)
+    # List of variables which have dimensions (time, freq)
     lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs']
     lstvars.extend(lstvarfreq)
+    # List of attributes that are present at each level but should be recomputed for the whole set, easy to compute afterwards so they are dropped
     lstattrs = ['min_val','max_val','avg_val','height_start','height_end','height_change_time','percent_missing']
+    # Loop on variables to reshape
     for var in lstvars:
       if var in lstvarsqc:
         lstexts = ['', '_qc']
       else: 
         lstexts = ['']
       for ext in lstexts:
+        # Dimensions differ whether we have (time) or (time, freq) initially
         if var in lstvarfreq:
           var0 = np.empty((len(ds['time']),60,len(height)))*np.nan      
         else:
           var0 = np.empty((len(ds['time']),len(height)))*np.nan      
+        # Loop on measurement heights
         for hh in range(len(height)):
+          # Initial names at each height
           name = var+'_'+str(height[hh])+'m'+ext
+          # Storage of values in the output variables
           if var in lstvarfreq:
               var0[:,:,hh] = ds[name].values
           else:
             var0[:,hh] = ds[name].values
+          # Keep the attributes of the highest level
           attrs = ds[name].attrs
+          # Remove the initial variables (at each height)
           ds=ds.drop(name)  
 
+        # Store the output variable in a Xarray into the final dataset
         if var in lstvarfreq:
           ds[var+ext] = xr.DataArray(var0, dims=['time','freq','height'], attrs=attrs)
         else:
@@ -970,6 +991,8 @@ def mosaic():
             var = 'zeta'
           ds[var+ext] = xr.DataArray(var0, dims=['time','height'], attrs=attrs)
         ds[var+ext].attrs['location'] = 'met city tower'
+
+        # Modify the attributes that mention the height in the initial variables
         if var == 'zeta':
           ds[var].attrs['long_name'] = 'Monin-Obukhov stability parameter, z/L'
         if var == 'phi_U':
@@ -986,6 +1009,7 @@ def mosaic():
           ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_epsilon based on the median epsilon'
         if var == 'Phi_NT' :
           ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_NT'
+        # Drop the uneless attributes
         for at in lstattrs:
           if (hasattr(ds[var+ext],at)) & (var!=lstvars[-1]):
             del ds[var+ext].attrs[at]

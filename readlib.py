@@ -918,16 +918,31 @@ def distance(coord1, coord2):
 
     return distance
 ################################################################################
-def mosaic():
+def mosaic(site='tower'):
+    """
+    This function loads the MOSAiC data either from the tower, or from one 
+    of the AFS staion around. It takes one argument :
+    - site = 'tower' / 'asf30' / 'asf40' / 'asf50'. Default : 'tower'
+
+    This function outputs an Xarray Dataset.
+
+    Author : virginie.guemas@meteo.fr - October 2022
+    """
+
+    lstsites=('tower','asf40','asf50','asf30')
+    if site not in lstsites: 
+      sys.exit(('Argument site should be in ',lstsites))
 
     # Location of MOSAic files and basename
-    towerpath=rootpath+'MOSAiC/Tower/ftpnoaa/2_level_product/version3/'
-    towerroot='mosseb.metcity.level2v3.10min.'
+    directory = { 'tower':'Tower','asf30':'ASF/ASF30','asf40':'ASF/ASF40','asf50':'ASF/ASF50'}
+    path=rootpath+'MOSAiC/'+directory[site]+'/ftpnoaa/2_level_product/version3/'
+    rootname = { 'tower':'metcity','asf30':'asfs30','asf40':'asfs40','asf50':'asfs50'}
+    basename='mosseb.'+rootname[site]+'.level2v3.10min.'
 
     # Period covered by files
     start_date=datetime.date(2019,10,15)
-    #end_date=datetime.date(2019,10,16)
-    end_date=datetime.date(2020,9,18)
+    end_date=datetime.date(2019,10,31)
+    #end_date=datetime.date(2020,9,20)
 
     # Loop on dates 
     date = start_date
@@ -935,83 +950,90 @@ def mosaic():
     while date <= end_date:
       date += datetime.timedelta(days=1)    
       # Data are stored in daily files
-      filename = towerpath+towerroot+date.strftime("%Y%m%d")+'.000000.nc'
+      filename = path+basename+date.strftime("%Y%m%d")+'.000000.nc'
       # Whenever present (intermittency), files loaded as Xarray datasets
       if os.path.exists(filename):
         lstds.append(xr.open_dataset(filename))
      
-    # Concatenation of datasets
-    ds = xr.concat(lstds, dim = 'time')
+    # Check whether the list of datasets contain any dataset
+    if bool(lstds): 
+      # Concatenation of datasets
+      ds = xr.concat(lstds, dim = 'time')
+    else:
+      # Create an empty dataset
+      ds = xr.Dataset(data_vars=None, coords=None, attrs=None)
 
-    # Creation of a height axis to reorganize data in (time, height) format
-    height = [2, 6, 10]
-    ds['height'] = xr.DataArray(height, dims=['height'], attrs={'units':'m'})
+    if site == 'tower':
+      # Creation of a height axis to reorganize data in (time, height) format
+      height = [2, 6, 10]
+      ds['height'] = xr.DataArray(height, dims=['height'], attrs={'units':'m'})
 
-    # List of variables which are present as variables and variables_qc
-    lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar']
-    # List of variables which are present only as variables
-    lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT']
-    lstvars.extend(lstvarsqc)
-    # List of variables which have dimensions (time, freq)
-    lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs']
-    lstvars.extend(lstvarfreq)
-    # List of attributes that are present at each level but should be recomputed for the whole set, easy to compute afterwards so they are dropped
-    lstattrs = ['min_val','max_val','avg_val','height_start','height_end','height_change_time','percent_missing']
-    # Loop on variables to reshape
-    for var in lstvars:
-      if var in lstvarsqc:
-        lstexts = ['', '_qc']
-      else: 
-        lstexts = ['']
-      for ext in lstexts:
-        # Dimensions differ whether we have (time) or (time, freq) initially
-        if var in lstvarfreq:
-          var0 = np.empty((len(ds['time']),60,len(height)))*np.nan      
-        else:
-          var0 = np.empty((len(ds['time']),len(height)))*np.nan      
-        # Loop on measurement heights
-        for hh in range(len(height)):
-          # Initial names at each height
-          name = var+'_'+str(height[hh])+'m'+ext
-          # Storage of values in the output variables
+      # List of variables which are present as variables and variables_qc
+      lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar']
+      # List of variables which are present only as variables
+      lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT']
+      lstvars.extend(lstvarsqc)
+      # List of variables which have dimensions (time, freq)
+      lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs']
+      lstvars.extend(lstvarfreq)
+      # List of attributes that are present at each level but should be recomputed for the whole set, easy to compute afterwards so they are dropped
+      lstattrs = ['min_val','max_val','avg_val','height_start','height_end','height_change_time','percent_missing']
+      # Loop on variables to reshape
+      for var in lstvars:
+        if var in lstvarsqc:
+          lstexts = ['', '_qc']
+        else: 
+          lstexts = ['']
+        for ext in lstexts:
+          # Dimensions differ whether we have (time) or (time, freq) initially
           if var in lstvarfreq:
-              var0[:,:,hh] = ds[name].values
+            var0 = np.empty((len(ds['time']),60,len(height)))*np.nan      
           else:
-            var0[:,hh] = ds[name].values
-          # Keep the attributes of the highest level
-          attrs = ds[name].attrs
-          # Remove the initial variables (at each height)
-          ds=ds.drop(name)  
+            var0 = np.empty((len(ds['time']),len(height)))*np.nan      
+          # Loop on measurement heights
+          for hh in range(len(height)):
+            # Initial names at each height
+            name = var+'_'+str(height[hh])+'m'+ext
+            # Storage of values in the output variables
+            if var in lstvarfreq:
+                var0[:,:,hh] = ds[name].values
+            else:
+              var0[:,hh] = ds[name].values
+            # Keep the attributes of the last level
+            attrs = ds[name].attrs
+            # Remove the initial variables (at each height)
+            ds=ds.drop(name)  
 
-        # Store the output variable in a Xarray into the final dataset
-        if var in lstvarfreq:
-          ds[var+ext] = xr.DataArray(var0, dims=['time','freq','height'], attrs=attrs)
-        else:
-          if var == 'zeta_level_n':
-            var = 'zeta'
-          ds[var+ext] = xr.DataArray(var0, dims=['time','height'], attrs=attrs)
-        ds[var+ext].attrs['location'] = 'met city tower'
+          # Store the output variable in a Xarray into the final dataset
+          if var in lstvarfreq:
+            ds[var+ext] = xr.DataArray(var0, dims=['time','freq','height'], attrs=attrs)
+          else:
+            if var == 'zeta_level_n':
+              var = 'zeta' # Rename zeta variable 
+            ds[var+ext] = xr.DataArray(var0, dims=['time','height'], attrs=attrs)
+          # Drop the height from this atttribute
+          ds[var+ext].attrs['location'] = 'met city tower' 
 
-        # Modify the attributes that mention the height in the initial variables
-        if var == 'zeta':
-          ds[var].attrs['long_name'] = 'Monin-Obukhov stability parameter, z/L'
-        if var == 'phi_U':
-          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, U is the streamwise wind vector'
-        if var == 'phi_V':
-          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, V is the streamwise wind vector'
-        if var == 'phi_W':
-          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, W is the streamwise wind vector'
-        if var == 'phi_T':
-          ds[var].attrs['long_name'] = 'MO universal function for the standard deviations'
-        if var == 'phi_UT':
-          ds[var].attrs['long_name'] = 'MO universal function for the horizontal heat flux, U is the streamwise wind vector'
-        if var == 'Phi_epsilon':
-          ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_epsilon based on the median epsilon'
-        if var == 'Phi_NT' :
-          ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_NT'
-        # Drop the uneless attributes
-        for at in lstattrs:
-          if (hasattr(ds[var+ext],at)) & (var!=lstvars[-1]):
-            del ds[var+ext].attrs[at]
+          # Modify the attributes that mention the height in the initial variables
+          if var == 'zeta':
+            ds[var].attrs['long_name'] = 'Monin-Obukhov stability parameter, z/L'
+          if var == 'phi_U':
+            ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, U is the streamwise wind vector'
+          if var == 'phi_V':
+            ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, V is the streamwise wind vector'
+          if var == 'phi_W':
+            ds[var].attrs['long_name'] = 'MO universal function for the standard deviations, W is the streamwise wind vector'
+          if var == 'phi_T':
+            ds[var].attrs['long_name'] = 'MO universal function for the standard deviations'
+          if var == 'phi_UT':
+            ds[var].attrs['long_name'] = 'MO universal function for the horizontal heat flux, U is the streamwise wind vector'
+          if var == 'Phi_epsilon':
+            ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_epsilon based on the median epsilon'
+          if var == 'Phi_NT' :
+            ds[var].attrs['long_name'] = 'Monin-Obukhov universal function Phi_NT'
+          # Drop the uneless attributes
+          for at in lstattrs:
+            if (hasattr(ds[var+ext],at)) & (var!=lstvars[-1]):
+              del ds[var+ext].attrs[at]
 
     return ds

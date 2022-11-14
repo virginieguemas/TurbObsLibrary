@@ -26,7 +26,7 @@ import inspect
 from glob import glob
 
 rootpath=inspect.getfile(readlib)[0:-18]
-loadice = False
+loadice = True
 ###############################################################################
 def main(campaigns=['sheba'],sheba_sites=['tower'],mosaic_sites=['tower'],freq='Hourly',flights=['FAAM','MASIN'],startdate='2019-10-09', enddate='2019-10-31') : 
     """
@@ -206,7 +206,10 @@ def shebatower(freq='Hourly'):
     if loadice:
       sic = nsidc(lat=ds.lat,lon=ds.lon)
       ds = xr.Dataset.merge(ds, sic)
-      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+      sic = nsidc(lat=ds.lat,lon=ds.lon,dataset='g02202v4')
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
     return ds
 ################################################################################
@@ -307,7 +310,10 @@ def shebapam(freq='1hour',sites=['Atlanta','Cleveland-Seattle-Maui','Baltimore',
       if loadice:
         sic = nsidc(lat=ds.latitude,lon=ds.longitude)
         ds = xr.Dataset.merge(ds, sic)
-        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+        sic = nsidc(lat=ds.latitude,lon=ds.longitude,dataset='g02202v4')
+        ds = xr.Dataset.merge(ds, sic)
+        ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
       # Output as a list of datasets per PAM station
       lstpamdat.append(ds)
@@ -464,7 +470,10 @@ def accacia(flights=['FAAM','MASIN']):
       if loadice:
         sic = nsidc(lat=ds.lat,lon=ds.lon)
         ds = xr.Dataset.merge(ds, sic)
-        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+        ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+        sic = nsidc(lat=ds.lat,lon=ds.lon,dataset='g02202v4')
+        ds = xr.Dataset.merge(ds, sic)
+        ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
       lstaccdat.append(ds)
 
@@ -509,7 +518,10 @@ def acse():
     if loadice:
       sic = nsidc(lat=ds.lat,lon=ds.lon)
       ds = xr.Dataset.merge(ds, sic)
-      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+      sic = nsidc(lat=ds.lat,lon=ds.lon,dataset='g02202v4')
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
     return ds
 ################################################################################
@@ -605,7 +617,10 @@ def ascos():
     if loadice:
       sic = nsidc(lat=ds.latitude,lon=ds.longitude)
       ds = xr.Dataset.merge(ds, sic)
-      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
+      ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+      sic = nsidc(lat=ds.latitude,lon=ds.longitude,dataset='g02202v4')
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
     return ds
 ################################################################################
@@ -650,6 +665,9 @@ def stable():
       sic = nsidc(lat=dstot.Latitude,lon=dstot.Longitude)
       dstot = xr.Dataset.merge(dstot, sic)
       dstot.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3
+      sic = nsidc(lat=dstot.Latitude,lon=dstot.Longitude,dataset='g02202v4')
+      dstot = xr.Dataset.merge(dstot, sic)
+      dstot.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
     return dstot
 ################################################################################
@@ -811,10 +829,11 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
 
     - lat = a DataArray of latitudes (in degrees).
     - lon = a DataArray of longitudes (in degrees).
-    - dataset = a NSIDC dataset id. Default : 'g02202v3'.
+    - dataset = a NSIDC dataset id : 'g02202v3'/'g02202v4'. Default : 'g02202v3'.
     - hemisphere = 'nh' or 'sh' for Arctic or Antarctic respectively. Default : 'nh'.
 
     Author : virginie.guemas@meteo.fr - July 2022
+    Modified : November 2022 - Virginie Guemas - Add option g02202v4
     """
     
     loose_grid_step = 20
@@ -828,24 +847,52 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       lstvars = ['seaice_conc_cdr','stdev_of_seaice_conc_cdr','goddard_merged_seaice_conc','goddard_nt_seaice_conc','goddard_bt_seaice_conc']
       # and the list of variables not to be loaded
       dropvars = ['projection','melt_onset_day_seaice_conc_cdr','qa_of_seaice_conc_cdr']
-      # Here is a general comment describing the data to be included 
-      comment = 'The CDR algorithm output is a rule-based combination of ice concentration estimates from two well-established algorithms: the NASA Team (NT) algorithm (Cavalieri et al. 1984) and NASA Bootstrap (BT) algorithm (Comiso 1986). The CDR algorithm blends the NT and BT output concentrations by selecting, for each grid cell, the higher concentration value. The CDR algorithm capitalizes on the strengths of each contributing algorithm to produce ice concentration fields that should be more accurate than those from either algorithm alone. The CDR begins in 1987 with DMSP SSM/I passive microwave data, rather than in 1978 with NASA Nimbus-7 SMMR data, because the complete processing history of SMMR brightness temperatures cannot be traced and therefore the CDR program requirement for transparency is not met.'
-      # Provide new names in the campaign dataset with the NSIDC dataset id as a suffix
-      newnames = {}
-      for var in lstvars+['time','latitude','longitude']:
-        newnames[var]=var+'_'+dataset
+
+    # g02202v4 dataset corresponds to NSIDC id g02202 version 4. 
+    elif dataset == 'g02202v4':
+      # For any dataset option, we need the basename (before the date) and the suffix (after the date)
+      basename = 'seaice_conc_daily_'+hemisphere+'_'
+      suffix = '_v04r00.nc'
+      # We need the list of variables to be loaded
+      lstvars = ['cdr_seaice_conc','stdev_of_cdr_seaice_conc','nsidc_nt_seaice_conc','nsidc_bt_seaice_conc']
+      # and the list of variables not to be loaded
+      dropvars = ['melt_onset_day_cdr_seaice_conc','qa_of_cdr_seaice_conc','spatial_interpolation_flag','temporal_interpolation_flag','projection']
     else:
       sys.exit('This dataset option is not coded yet')
 
+    if dataset == 'g02202v3' or dataset == dataset == 'g02202v4':
+      # Here is a general comment describing the data to be included 
+      comment = 'The CDR algorithm output is a rule-based combination of ice concentration estimates from two well-established algorithms: the NASA Team (NT) algorithm (Cavalieri et al. 1984) and NASA Bootstrap (BT) algorithm (Comiso 1986). The CDR algorithm blends the NT and BT output concentrations by selecting, for each grid cell, the higher concentration value. The CDR algorithm capitalizes on the strengths of each contributing algorithm to produce ice concentration fields that should be more accurate than those from either algorithm alone. The CDR begins in 1987 with DMSP SSM/I passive microwave data, rather than in 1978 with NASA Nimbus-7 SMMR data, because the complete processing history of SMMR brightness temperatures cannot be traced and therefore the CDR program requirement for transparency is not met.'
+    else:
+      sys.exit('This dataset option is not coded yet')
+    
+    # Provide new names in the campaign dataset with the NSIDC dataset id as a suffix
+    newnames = {}
+    for var in lstvars+['time','latitude','longitude']:
+      newnames[var]=var+'_'+dataset
+
     for jt in range(len(lat)):
     # We loop over the (latitude, longitude) time series providing the ship location
-      filename = glob(rootpath+'NSIDC/'+dataset+'/data/'+basename + lat.time[jt].dt.strftime('%Y%m%d').data + suffix)
+      if dataset == 'g02202v3':
+        filename = glob(rootpath+'NSIDC/'+dataset+'/data/'+basename + lat.time[jt].dt.strftime('%Y%m%d').data + suffix)
+      elif dataset == 'g02202v4':
+        filename = glob(rootpath+'NSIDC/'+dataset+'/G02202_V4/north/aggregate/'+basename + lat.time[jt].dt.strftime('%Y').data + suffix)
       if len(filename)!=1 :
-        sys.exit('We expect one and only one file to be loaded for a single date. Here we get '+filename)
+        sys.exit(('We expect one and only one file to be loaded for a single date. Here we get ',filename))
       # For each measurement date, we open the associated NSIDC file
-      seaicefld = xr.open_dataset(filename[0],drop_variables=dropvars).squeeze(dim='time')
+      seaicefld = xr.open_dataset(filename[0],drop_variables=dropvars)
+
+      if dataset == 'g02202v4':
+        seaicefld = seaicefld.isel(tdim = lat.time[jt].dt.dayofyear-1 ) 
+      # For the g02202v4 dataset, all the days of a year are stored in a single file. We select the correct day.
+        seaicefld = seaicefld.rename({'x':'xgrid','y':'ygrid'})
+      # Rename dimensions to the same as g02202v3, easier to handle dimensions below
+      
+      if dataset == 'g02202v3':
+        seaicefld = seaicefld.squeeze(dim='time')
       # The NSIDC time dimension is not a dimension anymore but only a variable. The time dimension will
       # rather be the ship measurement time. 
+
       if np.isnan(lon[jt]) or np.isnan(lat[jt]) or filename[0] == rootpath+'NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980311_v03r01.nc' or filename[0] == rootpath+'NSIDC/g02202v3/data/seaice_conc_daily_nh_f13_19980820_v03r01.nc':
         # If the location of the ship is unknown, 
         # we use a random point from the NSIDC grid
@@ -962,12 +1009,12 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     date = start_date
     lstds=[]
     while date <= end_date:
-      date += datetime.timedelta(days=1)    
       # Data are stored in daily files
       filename = path+basename+date.strftime("%Y%m%d")+'.000000.nc'
       # Whenever present (intermittency), files loaded as Xarray datasets
       if os.path.exists(filename):
         lstds.append(xr.open_dataset(filename))
+      date += datetime.timedelta(days=1)    
      
     # Check whether the list of datasets contain any dataset
     if bool(lstds): 
@@ -1049,5 +1096,12 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
           for at in lstattrs:
             if (hasattr(ds[var+ext],at)) & (var!=lstvars[-1]):
               del ds[var+ext].attrs[at]
+
+    # Include NSIDC sea ice concentrations
+    if loadice:
+      if site == 'tower':
+        sic = nsidc(lat=ds.lat_tower,lon=ds.lon_tower,dataset='g02202v4')
+      ds = xr.Dataset.merge(ds, sic)
+      ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 
     return ds

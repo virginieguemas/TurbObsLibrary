@@ -933,7 +933,7 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       seaicefld.close()
 
     # Set the time axis to be the same as the campaign Xarray Dataset one
-    seaice['time']=lon.time
+    seaice=seaice.assign_coords(time=lon.time)
     # Drop the general NSIDC attributes (but keep the ones for each variable) and keep a brief description
     # of the nsidc dataset
     seaice.attrs={'nsidc_'+dataset:comment} 

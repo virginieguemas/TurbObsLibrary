@@ -404,6 +404,10 @@ def shebaaircraft():
     #ds = xr.Dataset.merge(ds.rename({'time':'date'}), sic)
     #ds.attrs['nsidc_g02202v3'] = sic.nsidc_g02202v3 
 
+    # Using the nsidc function requires changing the latitude and longitude
+    # from that dataset from character to float and from minutes and seconds
+    # to degrees.
+
     return ds
 ################################################################################
 def accacia(flights=['FAAM','MASIN']):
@@ -533,6 +537,10 @@ def ao16():
     """
 
     ds = oden(rootpath+'/AO16/AO2016_foremast_30min_v4_0.nc')
+
+    # We can not load NSIDC sea ice concentration because we don't have the 
+    # ship position but we already have AMSR sea ice concentration in the
+    # AO16 dataset itself.
 
     return ds
 ################################################################################
@@ -876,7 +884,7 @@ def nsidc(lat, lon, dataset='g02202v3', hemisphere='nh'):
       if dataset == 'g02202v3':
         filename = glob(rootpath+'NSIDC/'+dataset+'/data/'+basename + lat.time[jt].dt.strftime('%Y%m%d').data + suffix)
       elif dataset == 'g02202v4':
-        filename = glob(rootpath+'NSIDC/'+dataset+'/G02202_V4/north/aggregate/'+basename + lat.time[jt].dt.strftime('%Y').data + suffix)
+        filename = glob(rootpath+'NSIDC/'+dataset+'/data/*/aggregate/'+basename + lat.time[jt].dt.strftime('%Y').data + suffix)
       if len(filename)!=1 :
         sys.exit(('We expect one and only one file to be loaded for a single date. Here we get ',filename))
       # For each measurement date, we open the associated NSIDC file
@@ -1004,6 +1012,7 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     # Period covered by files
     start_date=datetime.date(int(startdate[0:4]),int(startdate[5:7]),int(startdate[8:10]))
     end_date=datetime.date(int(enddate[0:4]),int(enddate[5:7]),int(enddate[8:10]))
+    print('MOSAiC data are loaded from ',start_date.strftime("%d %B %Y"),' to ',end_date.strftime("%d %B %Y"))
 
     # Loop on dates 
     date = start_date
@@ -1021,8 +1030,7 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
       # Concatenation of datasets
       ds = xr.concat(lstds, dim = 'time')
     else:
-      # Create an empty dataset
-      ds = xr.Dataset(data_vars=None, coords=None, attrs=None)
+      sys.exit('Not a single MOSAiC file over that period')
 
     if site == 'tower':
       # Creation of a height axis to reorganize data in (time, height) format
@@ -1048,9 +1056,11 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
         for ext in lstexts:
           # Dimensions differ whether we have (time) or (time, freq) initially
           if var in lstvarfreq:
-            var0 = np.empty((len(ds['time']),60,len(height)))*np.nan      
+            var0 = np.empty((len(ds['time']),60,len(height)))
+            var0[:,:,:] = np.nan
           else:
-            var0 = np.empty((len(ds['time']),len(height)))*np.nan      
+            var0 = np.empty((len(ds['time']),len(height)))
+            var0[:,:] = np.nan
           # Loop on measurement heights
           for hh in range(len(height)):
             # Initial names at each height

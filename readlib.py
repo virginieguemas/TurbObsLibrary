@@ -986,9 +986,9 @@ def distance(coord1, coord2):
 def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     """
     This function loads the MOSAiC data either from the tower, or from one 
-    of the AFS staion around. It takes three arguments :
+    of the AFS station around. It takes three arguments :
     - site = 'tower' / 'asf30' / 'asf40' / 'asf50'. Default : 'tower'
-    - startdate = YYYY-MM-DD. Example : '2019-10-09'
+    - startdate = YYYY-MM-DD. Example : '2019-10-05'
     - enddate = YYYY-MM-DD. Example : '2020-10-01'
     Please do not load the whole MOSAiC campaign at once. It takes too long.
     Data starts on 2019-10-09 and end on 2020-10-01.
@@ -1005,9 +1005,9 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     # Location of MOSAic files and basename
     directory1 = { 'tower':'Tower','asf30':'ASF/ASF30','asf40':'ASF/ASF40','asf50':'ASF/ASF50'}
     directory2 = { 'tower':'','asf30':'_asfs30','asf40':'_asfs40','asf50':'_asfs50'}
-    path=rootpath+'MOSAiC/'+directory1[site]+'/ftpnoaa/2_level_product'+directory2[site]+'/version3/'
+    path=rootpath+'MOSAiC/'+directory1[site]+'/ftpnoaa/3_level_archive'+directory2[site]+'/level3.4/'
     rootname = { 'tower':'metcity','asf30':'asfs30','asf40':'asfs40','asf50':'asfs50'}
-    basename='mosseb.'+rootname[site]+'.level2v3.10min.'
+    basename='mosseb.'+rootname[site]+'.level3.4.10min.'
 
     # Period covered by files
     start_date=datetime.date(int(startdate[0:4]),int(startdate[5:7]),int(startdate[8:10]))
@@ -1038,12 +1038,15 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
       ds['height'] = xr.DataArray(height, dims=['height'], attrs={'units':'m'})
 
       # List of variables which are present as variables and variables_qc
-      lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar']
+      # lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','temp_acoustic_mean','wspd_u_std','wspd_v_std','wspd_w_std','temp_acoustic_std','ustar'] # version level 2 october 2022
+      lstvarsqc = ['temp','dew_point','rh','mixing_ratio','rhi','vapor_pressure','wspd_vec_mean','wdir_vec_mean','wspd_u_mean','wspd_v_mean','wspd_w_mean','wspd_u_std','wspd_v_std','wspd_w_std','turbulence']
       # List of variables which are present only as variables
-      lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT']
+      # lstvars = ['Hs','Cd','Tstar','zeta_level_n','WU_csp','WV_csp','UV_csp','WT_csp','UT_csp','VT_csp','phi_U','phi_V','phi_W','phi_T','phi_UT','epsilon_U','epsilon_V','epsilon_W','epsilon','Phi_epsilon','nSU','nSV','nSW','nST','NT','Phi_NT','Phix','DeltaU','DeltaV','DeltaT'] # version level 2 october 2022
+      lstvars = ['Hs','Cd','ustar','Tstar','zeta_level_n','epsilon','sigU','sigV','sigW','wind_sector_qc_info']
       lstvars.extend(lstvarsqc)
       # List of variables which have dimensions (time, freq)
-      lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs']
+      #lstvarfreq = ['sUs','sVs','sWs','sTs','cWUs','cWVs','cUVs','cWTs','cUTs','cVTs'] # version level 2 october 2022
+      lstvarfreq = [ ]
       lstvars.extend(lstvarfreq)
       # List of attributes that are present at each level but should be recomputed for the whole set, easy to compute afterwards so they are dropped
       lstattrs = ['min_val','max_val','avg_val','height_start','height_end','height_change_time','percent_missing']
@@ -1051,6 +1054,8 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
       for var in lstvars:
         if var in lstvarsqc:
           lstexts = ['', '_qc']
+          if var in ['turbulence']:
+            lstexts = ['_qc']
         else: 
           lstexts = ['']
         for ext in lstexts:
@@ -1111,6 +1116,8 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     if loadice:
       if site == 'tower':
         sic = nsidc(lat=ds.lat_tower,lon=ds.lon_tower,dataset='g02202v4')
+      else:
+        sic = nsidc(lat=ds.lat,lon=ds.lon,dataset='g02202v4')
       ds = xr.Dataset.merge(ds, sic)
       ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
 

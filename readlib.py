@@ -991,7 +991,7 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
     - startdate = YYYY-MM-DD. Example : '2019-10-05'
     - enddate = YYYY-MM-DD. Example : '2020-10-01'
     Please do not load the whole MOSAiC campaign at once. It takes too long.
-    Data starts on 2019-10-09 and end on 2020-10-01.
+    Data starts on 2019-10-05 and end on 2020-10-01.
 
     This function outputs an Xarray Dataset.
 
@@ -1120,5 +1120,24 @@ def mosaic(site='tower', startdate='2019-10-09', enddate='2019-10-31'):
         sic = nsidc(lat=ds.lat,lon=ds.lon,dataset='g02202v4')
       ds = xr.Dataset.merge(ds, sic)
       ds.attrs['nsidc_g02202v4'] = sic.nsidc_g02202v4
+
+    return ds
+################################################################################
+def igp():
+    """ 
+    This function loads the IGP data.
+
+    This function outputs an Xarray Dataset.
+
+    Author : virginie.guemas@meteo.fr - October 2022
+    """
+
+    lstds=[]
+    for jnumb in (292,):
+      path=rootpath+'IGP/flight'+str(jnumb)+'/'
+      filename = path+'core_masin_20180228_r001_flight'+str(jnumb)+'_igp-qc.nc'
+      print(filename)
+      lstds.append(xr.open_dataset(filename))
+    ds = xr.concat(lstds, dim = 'time')
 
     return ds
